@@ -6,13 +6,14 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Book,
+  BookOpen,
   Award,
   Menu,
   X,
   LogOut,
   User as UserIcon,
   ChevronDown,
+  Home,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,14 +34,10 @@ export function Navbar() {
   // Efekt obsługujący zmianę tła nawigacji przy scrollowaniu
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 10) {
-        setScrolled(true);
-      } else {
-        setScrolled(false);
-      }
+      setScrolled(window.scrollY > 10);
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -49,8 +46,14 @@ export function Navbar() {
     setIsMenuOpen(false);
   }, [pathname]);
 
+  // Zaktualizowane elementy nawigacji z poprawną ścieżką /learning
   const navItems = [
-    { name: "Strona główna", href: "/", protected: false },
+    {
+      name: "Strona główna",
+      href: "/",
+      protected: false,
+      icon: <Home className="h-4 w-4 mr-2" />,
+    },
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -58,10 +61,10 @@ export function Navbar() {
       icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
     },
     {
-      name: "Lekcje",
-      href: "/lessons",
+      name: "Nauka", // Zmieniono z "Lekcje" na "Nauka"
+      href: "/learning", // Zmieniono z "/lessons" na "/learning"
       protected: true,
-      icon: <Book className="h-4 w-4 mr-2" />,
+      icon: <BookOpen className="h-4 w-4 mr-2" />,
     },
     {
       name: "Rankingi",
@@ -69,15 +72,23 @@ export function Navbar() {
       protected: true,
       icon: <Award className="h-4 w-4 mr-2" />,
     },
-    { name: "O nas", href: "/about", protected: false },
+    {
+      name: "O nas",
+      href: "/about",
+      protected: false,
+    },
   ];
 
-  const isActive = (path: string) => pathname === path;
+  // Ulepszony isActive, który obsługuje podścieżki
+  const isActive = (path: string) => {
+    if (path === "/") return pathname === "/";
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   return (
     <header
-      className={`sticky top-0 z-50 w-full transition-all duration-200 ${
-        scrolled ? "bg-white shadow-sm" : "bg-white/80 backdrop-blur-sm"
+      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
+        scrolled ? "bg-white shadow-md" : "bg-white/80 backdrop-blur-sm"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -126,7 +137,7 @@ export function Navbar() {
                     <Avatar className="h-8 w-8">
                       <AvatarImage src="" alt={user.userName} />
                       <AvatarFallback className="bg-blue-100 text-blue-800">
-                        {user.userName.substring(0, 2).toUpperCase()}
+                        {user.userName?.substring(0, 2).toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start text-sm">
@@ -194,8 +205,12 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      <div className={`${isMenuOpen ? "block" : "hidden"} md:hidden`}>
+      {/* Mobile Menu - z płynną animacją */}
+      <div
+        className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
+          isMenuOpen ? "max-h-96" : "max-h-0"
+        }`}
+      >
         <div className="pt-2 pb-3 space-y-1 border-t">
           {navItems
             .filter((item) => !item.protected || isAuthenticated)
@@ -224,7 +239,7 @@ export function Navbar() {
                   <Avatar className="h-10 w-10">
                     <AvatarImage src="" alt={user.userName} />
                     <AvatarFallback className="bg-blue-100 text-blue-800">
-                      {user.userName.substring(0, 2).toUpperCase()}
+                      {user.userName?.substring(0, 2).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </div>

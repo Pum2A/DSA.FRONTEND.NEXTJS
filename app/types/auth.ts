@@ -7,6 +7,7 @@ export interface User {
   experiencePoints: number;
   level: number;
   roles: string[];
+  joinedAt: string; // Dodane pole
 }
 
 export interface AuthState {
@@ -17,6 +18,8 @@ export interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (updatedUser: User) => Promise<boolean>; // Nowa funkcja
+
   checkAuthStatus: () => Promise<void>;
   clearError: () => void;
 }

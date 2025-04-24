@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useAuthStore } from "../store/authStore";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuthStore } from "@/app/store/authStore";
+import { apiService } from "@/app/lib/api";
 import {
   CalendarDays,
   Mail,
@@ -14,17 +17,170 @@ import {
   Award,
   Activity,
   Github,
+  AlertCircle,
+  Lightbulb,
+  Clock,
+  Star,
+  Shield,
+  Edit2,
+  Save,
+  UserCog,
+  Flame,
+  BookOpen,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+// Typ dla statystyk użytkownika
+interface UserStats {
+  totalXp: number;
+  level: number;
+  requiredXpForNextLevel: number;
+  currentLevelMinXp: number;
+  completedLessonsCount: number;
+  totalLessonsCount: number;
+  streakDays: number;
+  joinedAt?: string;
+}
 
 export default function ProfilePage() {
-  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading, updateUser } = useAuthStore();
   const router = useRouter();
 
+  // Stan dla trybu edycji
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+  });
+
+  // Stany dla danych statystycznych i ładowania
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Inicjały użytkownika do avatara
+  const getInitials = () => {
+    if (user) {
+      return (
+        `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` ||
+        user.userName?.[0]?.toUpperCase() ||
+        "?"
+      );
+    }
+    return "?";
+  };
+
+  // Sprawdź autentykację
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Pobierz dane użytkownika i statystyki
+  useEffect(() => {
+    console.log(user?.joinedAt);
+    if (isAuthenticated && user) {
+      setFormData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+      });
+
+      const fetchUserStats = async () => {
+        try {
+          setIsLoadingStats(true);
+          const response = await apiService.user.getStats();
+
+          // Symulacja/uzupełnienie brakujących danych dla przykładu
+          const statsData = {
+            ...(response as any),
+            streakDays: 5, // Przykładowa wartość
+            currentLevelMinXp: ((response as any).level - 1) * 100,
+            requiredXpForNextLevel: (response as any).level * 100,
+          };
+
+          setStats(statsData as UserStats);
+        } catch (error) {
+          console.error("Error fetching user stats:", error);
+          setError("Nie udało się pobrać statystyk użytkownika");
+
+          // Ustaw przykładowe dane w przypadku błędu
+          setStats({
+            totalXp: user.experiencePoints || 0,
+            level: user.level || 1,
+            requiredXpForNextLevel: (user.level || 1) * 100,
+            currentLevelMinXp: ((user.level || 1) - 1) * 100,
+            completedLessonsCount: 0,
+            totalLessonsCount: 0,
+            streakDays: 0,
+            joinedAt: stats?.joinedAt,
+          });
+        } finally {
+          setIsLoadingStats(false);
+        }
+      };
+
+      fetchUserStats();
+    }
+  }, [isAuthenticated, user]);
+
+  // Obliczanie procentu XP do następnego poziomu
+  const calculateXpProgress = () => {
+    if (!stats) return 0;
+
+    const currentXp = stats.totalXp - stats.currentLevelMinXp;
+    const requiredXp = stats.requiredXpForNextLevel - stats.currentLevelMinXp;
+
+    if (requiredXp <= 0) return 100;
+    const progress = Math.min(100, Math.round((currentXp / requiredXp) * 100));
+    return progress;
+  };
+
+  const xpProgress = calculateXpProgress();
+  const xpToNext = stats
+    ? Math.max(0, stats.requiredXpForNextLevel - stats.totalXp)
+    : 0;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      // Symulacja zapisu danych
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Aktualizacja danych użytkownika
+      if (user) {
+        updateUser({
+          ...user,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+        });
+      }
+
+      setIsEditing(false);
+      setSaveSuccess(true);
+
+      // Ukryj komunikat o sukcesie po 3 sekundach
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      setError("Nie udało się zaktualizować profilu");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -41,9 +197,6 @@ export default function ProfilePage() {
     return null; // Nie renderuj nic, zamiast tego przekieruj na stronę logowania
   }
 
-  // Inicjały użytkownika do avatara
-  const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`;
-
   return (
     <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
       {/* Nagłówek z gradientowym tłem */}
@@ -55,17 +208,52 @@ export default function ProfilePage() {
               Zarządzaj swoimi danymi i śledź postępy na platformie.
             </p>
           </div>
-          <Button className="mt-4 sm:mt-0 bg-white text-blue-700 hover:bg-blue-50">
-            Edytuj profil
+          <Button
+            className={`mt-4 sm:mt-0 ${
+              isEditing
+                ? "bg-white/80 text-blue-700 hover:bg-white"
+                : "bg-white text-blue-700 hover:bg-blue-50"
+            }`}
+            onClick={() => setIsEditing(!isEditing)}
+          >
+            {isEditing ? (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Anuluj edycję
+              </>
+            ) : (
+              <>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edytuj profil
+              </>
+            )}
           </Button>
         </div>
       </div>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Błąd</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {saveSuccess && (
+        <Alert className="mb-6 bg-green-50 border-green-200">
+          <AlertCircle className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-800">Sukces</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Profil został pomyślnie zaktualizowany
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* User Card */}
       <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 mb-8 border border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
           <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold text-white flex-shrink-0 mx-auto sm:mx-0 shadow-md">
-            {initials || user.userName?.[0] || "?"}
+            {getInitials()}
           </div>
           <div className="text-center sm:text-left">
             <h2 className="text-2xl font-bold mb-1 text-gray-800">
@@ -91,175 +279,335 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-100">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
-          <Activity size={20} className="text-blue-500" />
-          Statystyki
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-blue-50 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-blue-100">
-            <div className="text-sm text-gray-500 font-medium">Poziom</div>
-            <div className="text-3xl font-bold text-blue-600">
-              {user.level || 1}
-            </div>
-            <div className="mt-3">
-              <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      ((user.experiencePoints || 0) % 1000) / 10
-                    )}%`,
-                  }}
-                ></div>
+          <div className="ml-auto hidden sm:block">
+            <div className="flex flex-col items-center">
+              <div className="text-sm text-gray-500">Dołączył(a)</div>
+              <div className="font-medium">
+                {stats?.joinedAt
+                  ? new Intl.DateTimeFormat("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    }).format(new Date(stats.joinedAt))
+                  : "N/A"}
               </div>
-              <div className="flex justify-between mt-1.5 text-xs text-gray-500">
-                <span>0 XP</span>
-                <span>{user.experiencePoints || 0}/1000 XP</span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-green-50 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-green-100">
-            <div className="text-sm text-gray-500 font-medium">
-              Punkty doświadczenia
-            </div>
-            <div className="text-3xl font-bold text-green-600">
-              {user.experiencePoints || 0}
-            </div>
-            <div className="mt-3 text-sm text-gray-500">
-              <p className="flex items-center gap-1">
-                <Award size={14} className="text-green-500" />
-                Zdobywaj punkty, rozwiązując zadania
-              </p>
-            </div>
-          </div>
-          <div className="bg-purple-50 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-purple-100">
-            <div className="text-sm text-gray-500 font-medium">Role</div>
-            <div className="text-xl font-bold text-purple-600 truncate">
-              {user.roles?.join(", ") || "Użytkownik"}
-            </div>
-            <div className="mt-3 text-sm text-gray-500">
-              <p className="flex items-center gap-1">
-                <Github size={14} className="text-purple-500" />
-                Dostęp do funkcji na platformie
-              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Personal Information */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-            <User size={20} className="text-blue-500" />
-            Informacje osobiste
-          </h2>
-          <dl className="grid grid-cols-1 gap-y-5">
-            <div className="p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <dt className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"></span>
-                Imię
-              </dt>
-              <dd className="mt-1 text-lg font-medium text-gray-700">
-                {user.firstName || "—"}
-              </dd>
-            </div>
-            <div className="p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <dt className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"></span>
-                Nazwisko
-              </dt>
-              <dd className="mt-1 text-lg font-medium text-gray-700">
-                {user.lastName || "—"}
-              </dd>
-            </div>
-            <div className="p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <dt className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"></span>
-                Nazwa użytkownika
-              </dt>
-              <dd className="mt-1 text-lg font-medium text-gray-700">
-                {user.userName || "—"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-            <Mail size={20} className="text-blue-500" />
-            Informacje kontaktowe
-          </h2>
-          <dl className="grid grid-cols-1 gap-y-5">
-            <div className="p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <dt className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"></span>
-                Email
-              </dt>
-              <dd className="mt-1 text-lg font-medium text-gray-700">
-                {user.email || "—"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </div>
-
-      {/* Activity Section */}
-      <div className="bg-white rounded-xl shadow-md p-6 mt-8 border border-gray-100 hover:shadow-lg transition-shadow">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-          <CalendarDays size={20} className="text-blue-500" />
-          Ostatnia aktywność
-        </h2>
-        <div className="rounded-xl overflow-hidden border border-gray-200 divide-y">
-          <div className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
-                <User size={16} />
-              </div>
-              <div>
-                <h3 className="font-medium text-gray-800">
-                  Dołączenie do platformy
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Witamy w społeczności DSA Learning!
-                </p>
-              </div>
-            </div>
-            <div className="text-sm text-gray-400 flex items-center gap-1">
-              <span>Dzisiaj</span>
-              <ChevronRight size={16} />
-            </div>
-          </div>
-
-          {/* Można dodać więcej aktywności w miarę rozwijania aplikacji */}
-
-          {user.roles?.includes("Admin") && (
-            <div className="p-4 hover:bg-blue-50 transition-colors flex justify-between items-center bg-blue-50">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 flex-shrink-0">
-                  <Award size={16} />
+      {/* Nowy układ treści z zakładkami */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Lewa kolumna - statystyki i aktywność */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Stats Overview - z poprawionym XP */}
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
+              <Activity size={20} className="text-blue-500" />
+              Statystyki
+            </h2>
+            <div className="space-y-6">
+              {/* Poziom i XP z wizualnym progress barem */}
+              <div className="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-gray-700 font-medium flex items-center">
+                    <Shield className="h-5 w-5 text-blue-600 mr-2" />
+                    Poziom{" "}
+                    {isLoadingStats ? "..." : stats?.level || user.level || 1}
+                  </div>
+                  <div className="text-sm text-blue-700 font-medium">
+                    {isLoadingStats
+                      ? "..."
+                      : stats?.totalXp || user.experiencePoints || 0}{" "}
+                    XP
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-gray-800">
-                    Przyznano rolę administratora
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Masz dostęp do panelu administracyjnego
-                  </p>
+
+                {isLoadingStats ? (
+                  <Skeleton className="h-2 w-full rounded-full mb-2" />
+                ) : (
+                  <>
+                    <div className="w-full bg-blue-200 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-blue-600 h-full rounded-full"
+                        style={{ width: `${xpProgress}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between mt-1.5 text-xs text-gray-500">
+                      <span>{stats?.currentLevelMinXp || 0} XP</span>
+                      <span>
+                        {xpToNext} XP do poziomu {(stats?.level || 1) + 1}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Pozostałe statystyki */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 p-4 rounded-xl shadow-sm border border-green-100 flex flex-col items-center">
+                  <BookOpen className="h-6 w-6 text-green-600 mb-1" />
+                  <div className="text-xl font-bold text-green-700">
+                    {isLoadingStats ? "..." : stats?.completedLessonsCount || 0}
+                  </div>
+                  <div className="text-xs text-gray-500 text-center">
+                    Ukończone lekcje
+                  </div>
+                </div>
+
+                <div className="bg-orange-50 p-4 rounded-xl shadow-sm border border-orange-100 flex flex-col items-center">
+                  <Flame className="h-6 w-6 text-orange-600 mb-1" />
+                  <div className="text-xl font-bold text-orange-700">
+                    {isLoadingStats ? "..." : stats?.streakDays || 0}
+                  </div>
+                  <div className="text-xs text-gray-500 text-center">
+                    Dni z rzędu
+                  </div>
                 </div>
               </div>
-              <div className="text-sm text-gray-400 flex items-center gap-1">
-                <span>Dzisiaj</span>
-                <ChevronRight size={16} />
+
+              {/* Role */}
+              <div className="bg-purple-50 p-4 rounded-xl shadow-sm border border-purple-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Github size={18} className="text-purple-600" />
+                  <div className="text-sm font-medium text-gray-700">Role</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {user.roles?.map((role) => (
+                    <span
+                      key={role}
+                      className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium shadow-sm"
+                    >
+                      {role}
+                    </span>
+                  ))}
+                  {(!user.roles || user.roles.length === 0) && (
+                    <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                      Użytkownik
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+          </div>
+
+          {/* Activity Section */}
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
+              <CalendarDays size={20} className="text-blue-500" />
+              Ostatnia aktywność
+            </h2>
+            <div className="rounded-xl overflow-hidden border border-gray-200 divide-y">
+              <div className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">
+                      Dołączenie do platformy
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Witamy w społeczności DSA Learning!
+                    </p>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-400 flex items-center gap-1">
+                  <span>Dzisiaj</span>
+                  <ChevronRight size={16} />
+                </div>
+              </div>
+
+              {user.roles?.includes("Admin") && (
+                <div className="p-4 hover:bg-blue-50 transition-colors flex justify-between items-center bg-blue-50">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 flex-shrink-0">
+                      <Award size={16} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-800">
+                        Przyznano rolę administratora
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Masz dostęp do panelu administracyjnego
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400 flex items-center gap-1">
+                    <span>Dzisiaj</span>
+                    <ChevronRight size={16} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Prawa kolumna - informacje osobowe i ustawienia w zakładkach */}
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="personal">
+            <TabsList className="grid grid-cols-2 mb-6">
+              <TabsTrigger value="personal">
+                <UserRound className="h-4 w-4 mr-2" />
+                Informacje osobowe
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <UserCog className="h-4 w-4 mr-2" />
+                Ustawienia
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="personal">
+              {/* Personal Information */}
+              <form onSubmit={handleSubmit}>
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
+                    <User size={20} className="text-blue-500" />
+                    Dane osobowe
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">Imię</Label>
+                      <Input
+                        id="firstName"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        disabled={!isEditing}
+                        className={
+                          isEditing ? "" : "bg-gray-50 border-gray-200"
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Nazwisko</Label>
+                      <Input
+                        id="lastName"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        disabled={!isEditing}
+                        className={
+                          isEditing ? "" : "bg-gray-50 border-gray-200"
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <div className="flex items-center">
+                        <Mail className="h-5 w-5 text-gray-400 mr-2" />
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          disabled={!isEditing}
+                          className={
+                            isEditing ? "" : "bg-gray-50 border-gray-200"
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Nazwa użytkownika</Label>
+                      <Input
+                        id="username"
+                        value={user.userName || ""}
+                        disabled
+                        className="bg-gray-50 border-gray-200"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Nazwa użytkownika nie może zostać zmieniona
+                      </p>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="mt-6 flex justify-end">
+                      <Button
+                        type="submit"
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Zapisz zmiany
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="settings">
+              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
+                  <UserCog size={20} className="text-blue-500" />
+                  Ustawienia konta
+                </h2>
+
+                <div className="space-y-8 mt-6">
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Bezpieczeństwo</h3>
+                    <div className="bg-white border rounded-lg p-4">
+                      <p className="text-gray-700 mb-4">
+                        Zalecamy regularne zmienianie hasła dla zwiększenia
+                        bezpieczeństwa konta.
+                      </p>
+                      <Button variant="outline">Zmień hasło</Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Powiadomienia</h3>
+                    <div className="bg-gray-50 border rounded-lg p-6 text-center">
+                      <p className="text-gray-500">
+                        Ustawienia powiadomień będą dostępne wkrótce.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Prywatność</h3>
+                    <div className="bg-white border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="font-medium">Widoczność profilu</div>
+                          <div className="text-sm text-gray-500">
+                            Kto może widzieć Twój profil
+                          </div>
+                        </div>
+                        <div>
+                          <Button variant="outline" size="sm">
+                            Tylko ja
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">
+                            Udostępnianie statystyk
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Pokaż swoje postępy w nauce innym
+                          </div>
+                        </div>
+                        <div>
+                          <Button variant="outline" size="sm">
+                            Włączone
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

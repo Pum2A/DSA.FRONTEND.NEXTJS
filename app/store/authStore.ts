@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import api from "../lib/api";
-import { AuthState, RegisterData } from "../types/auth";
+import { AuthState, RegisterData, User } from "../types/auth";
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
@@ -20,9 +20,12 @@ export const useAuthStore = create<AuthState>((set) => ({
             id: data.userId,
             userName: data.userName,
             email: data.email,
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
             roles: data.roles || [],
-            experiencePoints: 0,
-            level: 1,
+            experiencePoints: data.experiencePoints || 0,
+            level: data.level || 1,
+            joinedAt: data.joinedAt,
           },
           isAuthenticated: true,
           isLoading: false,
@@ -54,9 +57,12 @@ export const useAuthStore = create<AuthState>((set) => ({
             id: data.userId,
             userName: data.userName,
             email: data.email,
+            firstName: registerData.firstName || "",
+            lastName: registerData.lastName || "",
             roles: data.roles || [],
             experiencePoints: 0,
             level: 1,
+            joinedAt: data.joinedAt,
           },
           isAuthenticated: true,
           isLoading: false,
@@ -111,6 +117,44 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: false,
         isLoading: false,
       });
+    }
+  },
+
+  // Nowa metoda do aktualizacji danych użytkownika
+  updateUser: async (updatedUser: User) => {
+    set((state) => ({
+      ...state,
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      // Opcjonalnie - wysyłanie danych do API
+      // Jeśli masz endpoint do aktualizacji profilu, można go użyć:
+      // await api.put('/auth/profile', {
+      //   firstName: updatedUser.firstName,
+      //   lastName: updatedUser.lastName,
+      //   email: updatedUser.email
+      // });
+
+      // Aktualizacja danych lokalnie
+      set((state) => ({
+        ...state,
+        user: updatedUser,
+        isLoading: false,
+      }));
+
+      return true;
+    } catch (error: any) {
+      set((state) => ({
+        ...state,
+        isLoading: false,
+        error:
+          error.response?.data?.message ||
+          "Nie udało się zaktualizować profilu",
+      }));
+
+      return false;
     }
   },
 

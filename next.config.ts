@@ -1,6 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Dodajemy konfigurację dla obrazów
+  images: {
+    domains: [
+      "www.geeksforgeeks.org",
+      "miro.medium.com",
+      "upload.wikimedia.org",
+      "media.geeksforgeeks.org",
+      "www.bigocheatsheet.com",
+    ],
+  },
+  // Zachowujemy istniejącą konfigurację przekierowań
   async rewrites() {
     return [
       {
