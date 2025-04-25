@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { JSX, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +32,51 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 
+type UserActivity = {
+  id: number | string;
+  userId: string;
+  actionType: number; // <-- NUMBER!
+  actionTime: string;
+  referenceId?: string;
+  additionalInfo?: string;
+};
+
+// Enum for action types (must match backend)
+enum UserActionType {
+  LessonCompleted = 0,
+  QuizCompleted = 1,
+  Login = 2,
+  // Dodaj inne typy jeśli masz
+}
+
+// Mapowanie numerów enum na ikonę i label
+const actionTypeMap: Record<number, { icon: JSX.Element; label: string }> = {
+  [UserActionType.LessonCompleted]: {
+    icon: <BookOpen className="h-5 w-5 text-green-600" />,
+    label: "Ukończono lekcję",
+  },
+  [UserActionType.QuizCompleted]: {
+    icon: <Medal className="h-5 w-5 text-yellow-600" />,
+    label: "Ukończono quiz",
+  },
+  [UserActionType.Login]: {
+    icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
+    label: "Logowanie",
+  },
+  // Dodaj inne typy jeśli masz!
+};
+
+function toDateStringUTC(date: Date) {
+  // Zwraca "YYYY-MM-DD" w UTC
+  return (
+    date.getUTCFullYear() +
+    "-" +
+    String(date.getUTCMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(date.getUTCDate()).padStart(2, "0")
+  );
+}
+
 export default function DashboardPage() {
   const { isAuthenticated, user, isLoading: authLoading } = useAuthStore();
   const router = useRouter();
@@ -43,7 +88,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const [streak, setStreak] = useState(0);
+  const [streak, setStreak] = useState<number>(0);
   const [dailyGoalCompleted, setDailyGoalCompleted] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0);
 
@@ -79,9 +124,18 @@ export default function DashboardPage() {
           setDataLoading(true);
 
           // Pobierz dane równolegle
-          const [modulesResponse, statsResponse] = await Promise.all([
+          const [
+            modulesResponse,
+            statsResponse,
+            streakResponse,
+            historyResponse,
+          ] = await Promise.all([
             apiService.lessons.getAllModules(),
             apiService.user.getStats(),
+            apiService.user.getStreak(),
+            apiService.user.getActivityHistory
+              ? apiService.user.getActivityHistory()
+              : Promise.resolve([]),
           ]);
 
           const modulesData = modulesResponse as Module[];
@@ -90,9 +144,60 @@ export default function DashboardPage() {
           const statsData = statsResponse as UserStats;
           setStats(statsData);
 
-          // Symulacja danych dla streak i postępu
-          setStreak(Math.floor(Math.random() * 10) + 1); // Losowy streak 1-10
-          setDailyGoalCompleted(Math.random() > 0.5); // Losowo czy cel dzienny jest zakończony
+          // streak z API
+          const streakData = streakResponse as { streak: number };
+          setStreak(streakData.streak || 0);
+
+          // -- DZIENNY CEL: porównuj tylko datę w UTC --
+          let todayDateString = toDateStringUTC(new Date());
+
+          let goalDone = false;
+          if (Array.isArray(historyResponse)) {
+            goalDone = historyResponse.some((a: UserActivity) => {
+              if (a.actionType !== UserActionType.LessonCompleted) return false;
+              const actionDate = toDateStringUTC(new Date(a.actionTime));
+              return actionDate === todayDateString;
+            });
+          }
+          setDailyGoalCompleted(goalDone);
+
+          // Recent activity (ostatnie 10)
+          if (Array.isArray(historyResponse)) {
+            setRecentActivity(
+              historyResponse
+                .slice(0, 10)
+                .map((a: UserActivity, idx: number) => {
+                  // Ikona i label na podstawie actionType (number!)
+                  const map = actionTypeMap[a.actionType] || {
+                    icon: <Clock className="h-5 w-5 text-gray-400" />,
+                    label: `Aktywność`,
+                  };
+
+                  // Opis dynamicznie na podstawie typu i referenceId
+                  let description = "";
+                  if (a.actionType === UserActionType.LessonCompleted) {
+                    description = `Ukończono lekcję: ${a.referenceId || "?"}`;
+                  } else if (a.actionType === UserActionType.QuizCompleted) {
+                    description = `Ukończono quiz: ${a.referenceId || "?"}`;
+                  } else if (a.actionType === UserActionType.Login) {
+                    description = "Logowanie do systemu";
+                  } else {
+                    description = a.additionalInfo || "";
+                  }
+
+                  return {
+                    id: a.id ?? idx,
+                    type: a.actionType,
+                    title: map.label,
+                    description,
+                    date: new Date(a.actionTime).toLocaleDateString(),
+                    icon: map.icon,
+                  };
+                })
+            );
+          } else {
+            setRecentActivity([]);
+          }
 
           // Oblicz całkowity postęp
           if (statsData) {
@@ -158,7 +263,7 @@ export default function DashboardPage() {
 
           const processedModules = await Promise.all(moduleProgressPromises);
 
-          // Sortuj ścieżki nauki - najpierw te w trakcie (nieukończone z postępem > 0), potem nierozpoczęte, na końcu ukończone
+          // Sortuj ścieżki nauki
           const sortedPaths = processedModules.sort((a, b) => {
             // Najpierw te z postępem powyżej 0 ale poniżej 100
             if (
@@ -183,51 +288,6 @@ export default function DashboardPage() {
           });
 
           setLearningPaths(sortedPaths);
-
-          // Ulepszona sekcja ostatniej aktywności z różnymi typami
-          setRecentActivity([
-            {
-              id: 1,
-              type: "lesson_complete",
-              title: "Ukończono lekcję",
-              description:
-                sortedModules[0]?.lessons && sortedModules[0].lessons[0]
-                  ? `Ukończono lekcję: ${sortedModules[0].lessons[0].title}`
-                  : "Ukończono lekcję: Wprowadzenie do tablic",
-              date: new Date().toLocaleDateString(),
-              icon: <BookOpen className="h-5 w-5 text-green-600" />,
-            },
-            {
-              id: 2,
-              type: "level_up",
-              title: "Awans na nowy poziom",
-              description: `Osiągnięto poziom ${user.level}!`,
-              date: new Date(
-                new Date().setDate(new Date().getDate() - 1)
-              ).toLocaleDateString(),
-              icon: <TrendingUp className="h-5 w-5 text-purple-600" />,
-            },
-            {
-              id: 3,
-              type: "achievement",
-              title: "Odblokowano osiągnięcie",
-              description: "Osiągnięcie: Pierwszy krok",
-              date: new Date(
-                new Date().setDate(new Date().getDate() - 2)
-              ).toLocaleDateString(),
-              icon: <Medal className="h-5 w-5 text-yellow-600" />,
-            },
-            {
-              id: 4,
-              type: "join",
-              title: "Dołączono do platformy",
-              description: "Witamy w społeczności DSA Learning!",
-              date: new Date(
-                new Date().setDate(new Date().getDate() - 3)
-              ).toLocaleDateString(),
-              icon: <Target className="h-5 w-5 text-blue-600" />,
-            },
-          ]);
         } catch (err) {
           console.error("Error fetching dashboard data:", err);
           setError("Nie udało się pobrać danych. Spróbuj odświeżyć stronę.");

@@ -121,6 +121,8 @@ export const apiService = {
   user: {
     getStats: () => apiService.get("/user/stats"),
     getProgress: () => apiService.get("/user/progress"),
+    getStreak: () => apiService.get("/userActivity/streak"),
+    getActivityHistory: () => apiService.get("/userActivity/history"),
   },
 };
 
