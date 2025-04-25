@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, JSX } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +27,11 @@ import {
   UserCog,
   Flame,
   BookOpen,
+  Medal,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Typ dla statystyk użytkownika
 interface UserStats {
@@ -43,6 +43,51 @@ interface UserStats {
   totalLessonsCount: number;
   streakDays: number;
   joinedAt?: string;
+}
+
+// Typ dla aktywności użytkownika
+type UserActivity = {
+  id: number | string;
+  userId: string;
+  actionType: number;
+  actionTime: string;
+  referenceId?: string;
+  additionalInfo?: string;
+};
+
+// Enum for action types (must match backend)
+enum UserActionType {
+  LessonCompleted = 0,
+  QuizCompleted = 1,
+  Login = 2,
+  // Dodaj inne typy jeśli masz
+}
+
+// Mapowanie numerów enum na ikonę i label
+const actionTypeMap: Record<number, { icon: JSX.Element; label: string }> = {
+  [UserActionType.LessonCompleted]: {
+    icon: <BookOpen className="h-5 w-5 text-green-600" />,
+    label: "Ukończono lekcję",
+  },
+  [UserActionType.QuizCompleted]: {
+    icon: <Medal className="h-5 w-5 text-yellow-600" />,
+    label: "Ukończono quiz",
+  },
+  [UserActionType.Login]: {
+    icon: <User className="h-5 w-5 text-blue-600" />,
+    label: "Logowanie",
+  },
+};
+
+function toDateStringUTC(date: Date) {
+  // Zwraca "YYYY-MM-DD" w UTC
+  return (
+    date.getUTCFullYear() +
+    "-" +
+    String(date.getUTCMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(date.getUTCDate()).padStart(2, "0")
+  );
 }
 
 export default function ProfilePage() {
@@ -62,6 +107,7 @@ export default function ProfilePage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   // Inicjały użytkownika do avatara
   const getInitials = () => {
@@ -84,7 +130,6 @@ export default function ProfilePage() {
 
   // Pobierz dane użytkownika i statystyki
   useEffect(() => {
-    console.log(user?.joinedAt);
     if (isAuthenticated && user) {
       setFormData({
         firstName: user.firstName || "",
@@ -95,22 +140,66 @@ export default function ProfilePage() {
       const fetchUserStats = async () => {
         try {
           setIsLoadingStats(true);
-          const response = await apiService.user.getStats();
 
-          // Symulacja/uzupełnienie brakujących danych dla przykładu
-          const statsData = {
-            ...(response as any),
-            streakDays: 5, // Przykładowa wartość
-            currentLevelMinXp: ((response as any).level - 1) * 100,
-            requiredXpForNextLevel: (response as any).level * 100,
-          };
+          const [statsResponse, streakResponse, historyResponse] =
+            await Promise.all([
+              apiService.user.getStats(),
+              apiService.user.getStreak(),
+              apiService.user.getActivityHistory
+                ? apiService.user.getActivityHistory()
+                : Promise.resolve([]),
+            ]);
 
-          setStats(statsData as UserStats);
+          const statsData = statsResponse as UserStats;
+          setStats({
+            ...statsData,
+            streakDays:
+              (streakResponse &&
+              typeof streakResponse === "object" &&
+              "streak" in streakResponse
+                ? (streakResponse as { streak: number }).streak
+                : statsData.streakDays) || 0,
+          });
+
+          // Recent activity (ostatnie 10)
+          if (Array.isArray(historyResponse)) {
+            setRecentActivity(
+              historyResponse
+                .slice(0, 10)
+                .map((a: UserActivity, idx: number) => {
+                  const map = actionTypeMap[a.actionType] || {
+                    icon: <Clock className="h-5 w-5 text-gray-400" />,
+                    label: `Aktywność`,
+                  };
+
+                  let description = "";
+                  if (a.actionType === UserActionType.LessonCompleted) {
+                    description = `Ukończono lekcję: ${a.referenceId || "?"}`;
+                  } else if (a.actionType === UserActionType.QuizCompleted) {
+                    description = `Ukończono quiz: ${a.referenceId || "?"}`;
+                  } else if (a.actionType === UserActionType.Login) {
+                    description = "Logowanie do systemu";
+                  } else {
+                    description = a.additionalInfo || "";
+                  }
+
+                  return {
+                    id: a.id ?? idx,
+                    type: a.actionType,
+                    title: map.label,
+                    description,
+                    date: new Date(a.actionTime).toLocaleDateString(),
+                    icon: map.icon,
+                  };
+                })
+            );
+          } else {
+            setRecentActivity([]);
+          }
         } catch (error) {
           console.error("Error fetching user stats:", error);
           setError("Nie udało się pobrać statystyk użytkownika");
 
-          // Ustaw przykładowe dane w przypadku błędu
           setStats({
             totalXp: user.experiencePoints || 0,
             level: user.level || 1,
@@ -119,7 +208,7 @@ export default function ProfilePage() {
             completedLessonsCount: 0,
             totalLessonsCount: 0,
             streakDays: 0,
-            joinedAt: stats?.joinedAt,
+            joinedAt: user.joinedAt,
           });
         } finally {
           setIsLoadingStats(false);
@@ -171,11 +260,7 @@ export default function ProfilePage() {
 
       setIsEditing(false);
       setSaveSuccess(true);
-
-      // Ukryj komunikat o sukcesie po 3 sekundach
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 3000);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error("Error updating profile:", error);
       setError("Nie udało się zaktualizować profilu");
@@ -194,12 +279,11 @@ export default function ProfilePage() {
   }
 
   if (!isAuthenticated || !user) {
-    return null; // Nie renderuj nic, zamiast tego przekieruj na stronę logowania
+    return null;
   }
 
   return (
     <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-      {/* Nagłówek z gradientowym tłem */}
       <div className="mb-8 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -398,47 +482,35 @@ export default function ProfilePage() {
               Ostatnia aktywność
             </h2>
             <div className="rounded-xl overflow-hidden border border-gray-200 divide-y">
-              <div className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
-                    <User size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">
-                      Dołączenie do platformy
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Witamy w społeczności DSA Learning!
-                    </p>
-                  </div>
+              {recentActivity.length === 0 && (
+                <div className="p-4 text-gray-400 text-center">
+                  Brak aktywności.
                 </div>
-                <div className="text-sm text-gray-400 flex items-center gap-1">
-                  <span>Dzisiaj</span>
-                  <ChevronRight size={16} />
-                </div>
-              </div>
-
-              {user.roles?.includes("Admin") && (
-                <div className="p-4 hover:bg-blue-50 transition-colors flex justify-between items-center bg-blue-50">
+              )}
+              {recentActivity.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center"
+                >
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 flex-shrink-0">
-                      <Award size={16} />
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
+                      {activity.icon}
                     </div>
                     <div>
                       <h3 className="font-medium text-gray-800">
-                        Przyznano rolę administratora
+                        {activity.title}
                       </h3>
                       <p className="text-sm text-gray-500">
-                        Masz dostęp do panelu administracyjnego
+                        {activity.description}
                       </p>
                     </div>
                   </div>
                   <div className="text-sm text-gray-400 flex items-center gap-1">
-                    <span>Dzisiaj</span>
+                    <span>{activity.date}</span>
                     <ChevronRight size={16} />
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
