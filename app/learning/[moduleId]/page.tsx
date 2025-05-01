@@ -30,6 +30,12 @@ export default function ModulePage() {
         const moduleData = (await apiService.lessons.getModule(
           moduleId as string
         )) as Module;
+
+        // Upewnij się, że moduleData zawiera tablicę lekcji
+        if (!moduleData.lessons) {
+          moduleData.lessons = [];
+        }
+
         setModule(moduleData);
 
         // Pobierz postęp dla każdej lekcji
@@ -107,7 +113,7 @@ export default function ModulePage() {
   }
 
   // Sortuj lekcje według kolejności
-  const sortedLessons = [...module.lessons].sort((a, b) => a.id - b.id);
+  const sortedLessons = [...(module.lessons || [])].sort((a, b) => a.id - b.id);
 
   return (
     <div className="container mx-auto px-4 py-8">
