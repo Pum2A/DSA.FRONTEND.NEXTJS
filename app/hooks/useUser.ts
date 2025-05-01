@@ -1,11 +1,11 @@
 import useSWR from "swr";
-import { getUserStats, getLeaderboard } from "../services/userService";
+import { userService } from "../services/userService";
 import { UserStats } from "../types";
 
-export function useUserStats() {
-  const { data, error, isLoading, mutate } = useSWR<UserStats, Error>(
+export const useUserStats = () => {
+  const { data, error, isLoading, mutate } = useSWR<UserStats>(
     "user-stats",
-    getUserStats
+    userService.getStats
   );
 
   return {
@@ -13,21 +13,6 @@ export function useUserStats() {
     isLoading,
     isError: !!error,
     error,
-    mutate,
+    refresh: mutate,
   };
-}
-
-export function useLeaderboard(limit: number = 10) {
-  const { data, error, isLoading, mutate } = useSWR<any[], Error>(
-    `leaderboard-${limit}`,
-    () => getLeaderboard(limit)
-  );
-
-  return {
-    leaderboard: data,
-    isLoading,
-    isError: !!error,
-    error,
-    mutate,
-  };
-}
+};

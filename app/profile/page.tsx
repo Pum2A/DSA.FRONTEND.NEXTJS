@@ -32,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AchievementsSection from "../components/ui/AchievementsSection";
 
 // Typ dla statystyk użytkownika
 interface UserStats {
@@ -448,6 +449,11 @@ export default function ProfilePage() {
                     Dni z rzędu
                   </div>
                 </div>
+              </div>
+
+              {/* Achievements Section */}
+              <div className="bg-yellow-50 p-4 rounded-xl shadow-sm border border-yellow-100">
+                <AchievementsSection />
               </div>
 
               {/* Role */}

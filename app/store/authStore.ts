@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import api from "../lib/api";
+import { apiService } from "../lib/api";
 import { AuthState, RegisterData, User } from "../types/auth";
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -12,7 +12,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const { data } = await api.post("/auth/login", { email, password });
+      const data = (await apiService.post("/auth/login", {
+        email,
+        password,
+      })) as {
+        succeeded: boolean;
+        userId: string;
+        userName: string;
+        email: string;
+        firstName?: string;
+        lastName?: string;
+        roles?: string[];
+        experiencePoints?: number;
+        level?: number;
+        joinedAt: string;
+        errors?: string[];
+      };
 
       if (data.succeeded) {
         set({
@@ -39,8 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error: any) {
       set({
         isLoading: false,
-        error:
-          error.response?.data?.errors?.[0] || error.message || "Login failed",
+        error: extractErrorMessage(error, "Login failed"),
       });
     }
   },
@@ -49,7 +63,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const { data } = await api.post("/auth/register", registerData);
+      const data = (await apiService.post("/auth/register", registerData)) as {
+        succeeded: boolean;
+        userId: string;
+        userName: string;
+        email: string;
+        firstName?: string;
+        lastName?: string;
+        roles?: string[];
+        joinedAt: string;
+        errors?: string[];
+      };
 
       if (data.succeeded) {
         set({
@@ -76,17 +100,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error: any) {
       set({
         isLoading: false,
-        error:
-          error.response?.data?.errors?.[0] ||
-          error.message ||
-          "Registration failed",
+        error: extractErrorMessage(error, "Registration failed"),
       });
     }
   },
 
   logout: async () => {
     try {
-      await api.post("/auth/logout");
+      await apiService.post("/auth/logout");
     } catch (error) {
       console.error("Error during logout:", error);
     }
@@ -101,17 +122,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
 
     try {
-      const { data } = await api.get("/auth/user");
+      const data = (await apiService.get("/auth/user")) as {
+        userId: string;
+        userName: string;
+        email: string;
+        firstName?: string;
+        lastName?: string;
+        roles?: string[];
+        experiencePoints?: number;
+        level?: number;
+        joinedAt: string;
+      };
 
       if (data) {
         set({
-          user: data,
+          user: {
+            id: data.userId,
+            userName: data.userName,
+            email: data.email,
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            roles: data.roles || [],
+            experiencePoints: data.experiencePoints || 0,
+            level: data.level || 1,
+            joinedAt: data.joinedAt,
+          },
           isAuthenticated: true,
           isLoading: false,
         });
       }
     } catch (error) {
-      // Użytkownik nie jest zalogowany
       set({
         user: null,
         isAuthenticated: false,
@@ -120,24 +160,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  // Nowa metoda do aktualizacji danych użytkownika
   updateUser: async (updatedUser: User) => {
-    set((state) => ({
-      ...state,
-      isLoading: true,
-      error: null,
-    }));
+    set({ isLoading: true, error: null });
 
     try {
-      // Opcjonalnie - wysyłanie danych do API
-      // Jeśli masz endpoint do aktualizacji profilu, można go użyć:
-      // await api.put('/auth/profile', {
-      //   firstName: updatedUser.firstName,
-      //   lastName: updatedUser.lastName,
-      //   email: updatedUser.email
-      // });
+      // Send updated user details to API if needed
+      // await apiService.put("/auth/profile", updatedUser);
 
-      // Aktualizacja danych lokalnie
+      // Update user data locally in the store
       set((state) => ({
         ...state,
         user: updatedUser,
@@ -146,13 +176,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       return true;
     } catch (error: any) {
-      set((state) => ({
-        ...state,
+      set({
         isLoading: false,
-        error:
-          error.response?.data?.message ||
-          "Nie udało się zaktualizować profilu",
-      }));
+        error: extractErrorMessage(error, "Failed to update profile"),
+      });
 
       return false;
     }
@@ -162,3 +189,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ error: null });
   },
 }));
+
+// Utility to extract error messages for consistent error handling
+const extractErrorMessage = (error: any, defaultMessage: string): string => {
+  return (
+    error.response?.data?.errors?.[0] ||
+    error.response?.data?.message ||
+    error.message ||
+    defaultMessage
+  );
+};

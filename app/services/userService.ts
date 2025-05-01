@@ -1,22 +1,24 @@
-import api from "../lib/api";
+import { apiService } from "../lib/api";
 import { UserStats } from "../types";
 
-export async function getUserStats(): Promise<UserStats> {
-  try {
-    const response = await api.get("/api/user/stats");
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching user stats:", error);
-    throw error;
-  }
-}
+export const userService = {
+  // Fetch user stats
+  getStats: (): Promise<UserStats> => {
+    return apiService.get("/user/stats");
+  },
 
-export async function getLeaderboard(limit: number = 10): Promise<any[]> {
-  try {
-    const response = await api.get(`/api/leaderboard?limit=${limit}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching leaderboard:", error);
-    throw error;
-  }
-}
+  // Fetch user progress
+  getProgress: (): Promise<any> => {
+    return apiService.get("/user/progress");
+  },
+
+  // Fetch user streak
+  getStreak: (): Promise<any> => {
+    return apiService.get("/userActivity/streak");
+  },
+
+  // Fetch user activity history
+  getActivityHistory: (): Promise<any[]> => {
+    return apiService.get("/userActivity/history");
+  },
+};

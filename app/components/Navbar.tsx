@@ -13,7 +13,7 @@ import {
   LogOut,
   User as UserIcon,
   ChevronDown,
-  Home,
+  Bell,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "../store/authStore";
+import NotificationsBadge from "./ui/NotificationsBadge";
+import NotificationsDropdown from "./ui/NotificationsDropdown";
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -46,14 +48,8 @@ export function Navbar() {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  // Zaktualizowane elementy nawigacji z poprawną ścieżką /learning
+  // Nowoczesny, minimalistyczny zestaw nawigacji
   const navItems = [
-    {
-      name: "Strona główna",
-      href: "/",
-      protected: false,
-      icon: <Home className="h-4 w-4 mr-2" />,
-    },
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -61,8 +57,8 @@ export function Navbar() {
       icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
     },
     {
-      name: "Nauka", // Zmieniono z "Lekcje" na "Nauka"
-      href: "/learning", // Zmieniono z "/lessons" na "/learning"
+      name: "Nauka",
+      href: "/learning",
       protected: true,
       icon: <BookOpen className="h-4 w-4 mr-2" />,
     },
@@ -95,18 +91,18 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">DS</span>
+            <Link href="/dashboard" className="flex items-center space-x-2">
+              <span className="h-8 w-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow">
+                <span className="text-white font-bold text-lg">DS</span>
               </span>
-              <span className="text-lg font-bold text-gray-900">
+              <span className="text-lg font-bold text-gray-900 tracking-tight">
                 DSA Learning
               </span>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex md:space-x-8">
+          <nav className="hidden md:flex md:items-center md:space-x-6">
             {navItems
               .filter((item) => !item.protected || isAuthenticated)
               .map((item) => (
@@ -116,7 +112,7 @@ export function Navbar() {
                   className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
                     isActive(item.href)
                       ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-900 hover:border-b-2 hover:border-gray-300"
+                      : "text-gray-500 hover:text-blue-700 hover:border-b-2 hover:border-blue-300"
                   }`}
                 >
                   {item.icon && item.icon}
@@ -125,8 +121,9 @@ export function Navbar() {
               ))}
           </nav>
 
-          {/* Auth Buttons / User Menu */}
+          {/* Right: Notifications + Auth */}
           <div className="hidden md:flex md:items-center md:space-x-4">
+            {isAuthenticated && <NotificationsDropdown />}
             {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -205,7 +202,7 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu - z płynną animacją */}
+      {/* Mobile Menu */}
       <div
         className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
           isMenuOpen ? "max-h-96" : "max-h-0"
@@ -229,6 +226,13 @@ export function Navbar() {
               </Link>
             ))}
         </div>
+
+        {/* Mobile notifications */}
+        {isAuthenticated && (
+          <div className="px-4 py-2 border-t">
+            <NotificationsBadge mobile />
+          </div>
+        )}
 
         {/* Mobile Auth Menu */}
         <div className="pt-4 pb-3 border-t border-gray-200">

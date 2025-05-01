@@ -98,7 +98,6 @@ export const apiService = {
   },
 
   // Metody dla modułu lekcji
-  // Metody dla modułu lekcji
   lessons: {
     getAllModules: () => apiService.get("/lessons/modules"),
     getModule: (moduleId: string) =>

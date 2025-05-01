@@ -12,6 +12,8 @@ import { apiService } from "@/app/lib/api";
 import StepRenderer from "@/app/components/learning/StepRenderer";
 import ProgressBar from "@/app/components/learning/ProgressBar";
 import { LoadingButton } from "@/app/components/ui/LoadingButton";
+import { useUserStats } from "@/app/hooks/useUser";
+import { useNotifications } from "@/app/hooks/useNotifications";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{
@@ -27,6 +29,9 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { mutate: mutateUserStats } = useUserStats();
+  const { mutate: mutateNotifications } = useNotifications();
 
   useEffect(() => {
     const fetchLessonData = async () => {
@@ -46,8 +51,6 @@ export default function LessonPage() {
           const stepsData = await apiService.lessons.getLessonSteps(
             lessonId as string
           );
-          console.log("Fetched steps data:", stepsData);
-
           // Przetwarzanie kroków quizu
           const processedSteps = (stepsData as Step[]).map((step) => {
             if (step.type === "quiz" && step.additionalData) {
@@ -135,6 +138,11 @@ export default function LessonPage() {
       // Jeśli to ostatni krok, ukończ lekcję
       if (currentStepIndex >= steps.length - 1) {
         await apiService.lessons.completeLesson(lessonId as string);
+
+        // --- KLUCZOWE: Odśwież dane użytkownika i powiadomień ---
+        if (typeof mutateUserStats === "function") mutateUserStats();
+        if (typeof mutateNotifications === "function")
+          mutateNotifications(undefined, { revalidate: true });
 
         // Przekieruj do strony modułu
         router.push(`/learning/${moduleId}?completed=${lessonId}`);
