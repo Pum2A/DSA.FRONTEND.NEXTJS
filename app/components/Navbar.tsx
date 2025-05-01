@@ -14,6 +14,7 @@ import {
   User as UserIcon,
   ChevronDown,
   Bell,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,31 +25,69 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "../store/authStore";
-import NotificationsBadge from "./ui/NotificationsBadge";
 import NotificationsDropdown from "./ui/NotificationsDropdown";
+import useSWR, { mutate } from "swr";
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false); // Wskaźnik ładowania (spinner)
   const pathname = usePathname();
 
-  // Efekt obsługujący zmianę tła nawigacji przy scrollowaniu
+  // Pobieranie danych użytkownika z SWR
+  const { data: updatedUser, mutate: refreshUser } = useSWR(
+    isAuthenticated ? "/auth/user" : null,
+    async () => {
+      const response = await fetch("/api/auth/user");
+      if (!response.ok) throw new Error("Failed to fetch user data");
+      return response.json();
+    },
+    { fallbackData: user, revalidateOnFocus: false }
+  );
+
+  // Obsługa zakończenia zadania i odświeżenia danych
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
+    const handleTaskCompleted = async () => {
+      console.log("Zdarzenie taskCompleted odebrane! Odświeżam dane...");
+      setIsRefreshing(true); // Pokazujemy spinner
+
+      try {
+        // Odśwież dane użytkownika
+        await refreshUser();
+
+        // Odśwież powiadomienia
+        const refreshEvent = new CustomEvent("refreshNotifications");
+        window.dispatchEvent(refreshEvent);
+      } catch (error) {
+        console.error("Błąd podczas odświeżania danych:", error);
+      } finally {
+        setIsRefreshing(false); // Ukrywamy spinner
+      }
     };
+
+    // Nasłuchuj na zdarzenie "taskCompleted"
+    window.addEventListener("taskCompleted", handleTaskCompleted);
+
+    return () => {
+      window.removeEventListener("taskCompleted", handleTaskCompleted);
+    };
+  }, [refreshUser]);
+
+  // Efekt przewijania strony
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Zamyka menu mobilne po zmianie ścieżki
+  // Zamknięcie menu mobilnego po zmianie ścieżki
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  // Nowoczesny, minimalistyczny zestaw nawigacji
+  // Elementy nawigacji
   const navItems = [
     {
       name: "Dashboard",
@@ -75,7 +114,7 @@ export function Navbar() {
     },
   ];
 
-  // Ulepszony isActive, który obsługuje podścieżki
+  // Sprawdzenie, czy ścieżka jest aktywna
   const isActive = (path: string) => {
     if (path === "/") return pathname === "/";
     return pathname === path || pathname.startsWith(`${path}/`);
@@ -101,7 +140,7 @@ export function Navbar() {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
+          {/* Nawigacja desktopowa */}
           <nav className="hidden md:flex md:items-center md:space-x-6">
             {navItems
               .filter((item) => !item.protected || isAuthenticated)
@@ -121,10 +160,10 @@ export function Navbar() {
               ))}
           </nav>
 
-          {/* Right: Notifications + Auth */}
+          {/* Prawa strona: powiadomienia + auth */}
           <div className="hidden md:flex md:items-center md:space-x-4">
             {isAuthenticated && <NotificationsDropdown />}
-            {isAuthenticated && user ? (
+            {isAuthenticated && updatedUser ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -132,20 +171,27 @@ export function Navbar() {
                     className="flex items-center space-x-2 px-2"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="" alt={user.userName} />
+                      <AvatarImage src="" alt={updatedUser.userName} />
                       <AvatarFallback className="bg-blue-100 text-blue-800">
-                        {user.userName?.substring(0, 2).toUpperCase() || "U"}
+                        {updatedUser.userName?.substring(0, 2).toUpperCase() ||
+                          "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start text-sm">
-                      <span className="font-medium">{user.userName}</span>
+                      <span className="font-medium">
+                        {updatedUser.userName}
+                      </span>
                       <div className="flex items-center text-xs text-gray-500">
-                        <span>Poziom {user.level}</span>
+                        <span>Poziom {updatedUser.level}</span>
                         <span className="mx-1">•</span>
-                        <span>{user.experiencePoints} XP</span>
+                        <span>{updatedUser.experiencePoints} XP</span>
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                    {isRefreshing ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -183,7 +229,7 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Przyciski mobilne */}
           <div className="flex md:hidden">
             <button
               type="button"
@@ -199,90 +245,6 @@ export function Navbar() {
               )}
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      <div
-        className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
-          isMenuOpen ? "max-h-96" : "max-h-0"
-        }`}
-      >
-        <div className="pt-2 pb-3 space-y-1 border-t">
-          {navItems
-            .filter((item) => !item.protected || isAuthenticated)
-            .map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center px-4 py-2 text-base font-medium ${
-                  isActive(item.href)
-                    ? "text-blue-600 bg-blue-50 border-l-4 border-blue-600"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent"
-                }`}
-              >
-                {item.icon && item.icon}
-                {item.name}
-              </Link>
-            ))}
-        </div>
-
-        {/* Mobile notifications */}
-        {isAuthenticated && (
-          <div className="px-4 py-2 border-t">
-            <NotificationsBadge mobile />
-          </div>
-        )}
-
-        {/* Mobile Auth Menu */}
-        <div className="pt-4 pb-3 border-t border-gray-200">
-          {isAuthenticated && user ? (
-            <div>
-              <div className="flex items-center px-4 py-2">
-                <div className="flex-shrink-0">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="" alt={user.userName} />
-                    <AvatarFallback className="bg-blue-100 text-blue-800">
-                      {user.userName?.substring(0, 2).toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="ml-3">
-                  <div className="text-base font-medium text-gray-800">
-                    {user.userName}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Poziom {user.level} • {user.experiencePoints} XP
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 space-y-1">
-                <Link
-                  href="/profile"
-                  className="block px-4 py-2 text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                >
-                  Profil
-                </Link>
-                <button
-                  onClick={() => logout()}
-                  className="block w-full text-left px-4 py-2 text-base font-medium text-red-600 hover:bg-gray-50"
-                >
-                  Wyloguj się
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="px-4 py-3 space-y-2">
-              <Link href="/login" className="block">
-                <Button variant="outline" className="w-full">
-                  Zaloguj
-                </Button>
-              </Link>
-              <Link href="/register" className="block">
-                <Button className="w-full">Zarejestruj</Button>
-              </Link>
-            </div>
-          )}
         </div>
       </div>
     </header>

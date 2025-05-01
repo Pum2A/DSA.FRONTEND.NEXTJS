@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Lesson, Step, UserProgress } from "@/app/types";
 import { apiService } from "@/app/lib/api";
 import StepRenderer from "@/app/components/learning/StepRenderer";
@@ -28,10 +28,11 @@ export default function LessonPage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Spinner for step submission
+  const [isFinishing, setIsFinishing] = useState(false); // Spinner for lesson completion
 
-  const { mutate: mutateUserStats } = useUserStats();
-  const { mutate: mutateNotifications } = useNotifications();
+  const { refresh: refreshUserStats } = useUserStats();
+  const { refresh: refreshNotifications } = useNotifications();
 
   useEffect(() => {
     const fetchLessonData = async () => {
@@ -40,78 +41,57 @@ export default function LessonPage() {
       try {
         setLoading(true);
 
-        // Pobierz dane lekcji
+        // Fetch lesson data
         const lessonData = (await apiService.lessons.getLesson(
-          lessonId as string
+          lessonId
         )) as Lesson;
         setLesson(lessonData);
 
-        // Osobne pobieranie kroków lekcji
-        try {
-          const stepsData = await apiService.lessons.getLessonSteps(
-            lessonId as string
-          );
-          // Przetwarzanie kroków quizu
-          const processedSteps = (stepsData as Step[]).map((step) => {
-            if (step.type === "quiz" && step.additionalData) {
-              try {
-                const quizData =
-                  typeof step.additionalData === "string"
-                    ? JSON.parse(step.additionalData)
-                    : step.additionalData;
+        // Fetch steps
+        const stepsData = await apiService.lessons.getLessonSteps(lessonId);
+        const processedSteps = (stepsData as Step[]).map((step) => {
+          if (step.type === "quiz" && step.additionalData) {
+            try {
+              const quizData =
+                typeof step.additionalData === "string"
+                  ? JSON.parse(step.additionalData)
+                  : step.additionalData;
 
-                return {
-                  ...step,
-                  question: quizData.question || step.question,
-                  options: quizData.options || step.options,
-                  correctAnswer: quizData.correctAnswer || step.correctAnswer,
-                  explanation: quizData.explanation || step.explanation,
-                };
-              } catch (error) {
-                console.error(
-                  `Error parsing quiz data for step ${step.id}:`,
-                  error
-                );
-                return step;
-              }
+              return {
+                ...step,
+                question: quizData.question || step.question,
+                options: quizData.options || step.options,
+                correctAnswer: quizData.correctAnswer || step.correctAnswer,
+                explanation: quizData.explanation || step.explanation,
+              };
+            } catch (error) {
+              console.error(
+                `Error parsing quiz data for step ${step.id}:`,
+                error
+              );
+              return step;
             }
-            return step;
-          });
-
-          // Sortuj kroki według kolejności
-          const sortedSteps = [...processedSteps].sort(
-            (a, b) => a.order - b.order
-          );
-          setSteps(sortedSteps);
-        } catch (err) {
-          console.error("Error fetching steps:", err);
-
-          // Fallback - użyj kroków z lekcji, jeśli nowy endpoint nie działa
-          if (lessonData.steps) {
-            const sortedSteps = [...lessonData.steps].sort(
-              (a, b) => a.order - b.order
-            );
-            setSteps(sortedSteps);
           }
-        }
+          return step;
+        });
 
-        // Pobierz postęp użytkownika
-        try {
-          const progressData = (await apiService.lessons.getLessonProgress(
-            lessonId as string
-          )) as UserProgress;
-          setProgress(progressData);
+        const sortedSteps = [...processedSteps].sort(
+          (a, b) => a.order - b.order
+        );
+        setSteps(sortedSteps);
 
-          // Ustaw aktualny krok na podstawie postępu
-          if (progressData && progressData.currentStepIndex > 0) {
-            setCurrentStepIndex(progressData.currentStepIndex);
-          }
-        } catch (err) {
-          console.error("Error fetching progress:", err);
-          // Brak postępu nie jest krytycznym błędem
+        // Fetch progress
+        const progressData = (await apiService.lessons.getLessonProgress(
+          lessonId
+        )) as UserProgress;
+        setProgress(progressData);
+
+        // Set the current step based on progress
+        if (progressData && progressData.currentStepIndex > 0) {
+          setCurrentStepIndex(progressData.currentStepIndex);
         }
       } catch (err) {
-        console.error("Error fetching lesson:", err);
+        console.error("Error fetching lesson data:", err);
         setError(
           "Nie udało się pobrać danych lekcji. Spróbuj odświeżyć stronę."
         );
@@ -129,33 +109,51 @@ export default function LessonPage() {
     setIsSubmitting(true);
 
     try {
-      // Zapisz ukończenie aktualnego kroku
+      // Save progress for the current step
       await apiService.lessons.completeStep(
         lessonId as string,
         currentStepIndex
       );
 
-      // Jeśli to ostatni krok, ukończ lekcję
+      // If it's the last step, complete the lesson
       if (currentStepIndex >= steps.length - 1) {
-        await apiService.lessons.completeLesson(lessonId as string);
+        setIsSubmitting(false);
+        setIsFinishing(true); // Show finishing spinner
 
-        // --- KLUCZOWE: Odśwież dane użytkownika i powiadomień ---
-        if (typeof mutateUserStats === "function") mutateUserStats();
-        if (typeof mutateNotifications === "function")
-          mutateNotifications(undefined, { revalidate: true });
-
-        // Przekieruj do strony modułu
-        router.push(`/learning/${moduleId}?completed=${lessonId}`);
+        await completeLesson();
         return;
       }
 
-      // Przejdź do następnego kroku
+      // Move to the next step
       setCurrentStepIndex(currentStepIndex + 1);
     } catch (err) {
-      console.error("Error handling step completion:", err);
+      console.error("Error completing step:", err);
       alert("Wystąpił błąd przy zapisywaniu postępu. Spróbuj ponownie.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const completeLesson = async () => {
+    setIsFinishing(true); // Pokaż spinner
+
+    try {
+      await apiService.lessons.completeLesson(lessonId);
+
+      // Odśwież dane użytkownika i powiadomienia
+      await Promise.all([refreshUserStats(), refreshNotifications()]);
+
+      // Emituj event `taskCompleted`
+      const event = new CustomEvent("taskCompleted");
+      window.dispatchEvent(event);
+
+      // Przekieruj do modułu
+      router.push(`/learning/${moduleId}?completed=${lessonId}`);
+    } catch (error) {
+      console.error("Błąd podczas kończenia lekcji:", error);
+      alert("Wystąpił błąd. Spróbuj ponownie.");
+    } finally {
+      setIsFinishing(false); // Ukryj spinner
     }
   };
 
@@ -169,23 +167,14 @@ export default function LessonPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <Skeleton className="h-10 w-64 mb-2" />
-        <div className="flex justify-between text-sm text-gray-600 mb-4">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-5 w-16" />
-        </div>
-
+        <Skeleton className="h-5 w-32 mb-4" />
         <Skeleton className="h-2 w-full mb-8" />
-
         <Card className="mb-6">
           <CardContent className="p-6">
             <Skeleton className="h-64 w-full" />
           </CardContent>
         </Card>
-
-        <div className="flex justify-between">
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-10 w-36" />
-        </div>
+        <Skeleton className="h-10 w-36" />
       </div>
     );
   }
@@ -193,7 +182,6 @@ export default function LessonPage() {
   if (error || !lesson) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Błąd</h1>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Błąd</AlertTitle>
@@ -213,13 +201,21 @@ export default function LessonPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {isFinishing && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="text-white text-lg flex items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            Trwa zapisywanie postępu...
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">{lesson.title}</h1>
         <div className="flex justify-between text-sm text-gray-600 mb-4">
           <span>Szacowany czas: {lesson.estimatedTime}</span>
           <span>XP: {lesson.xpReward}</span>
         </div>
-
         <ProgressBar currentStep={currentStepIndex} totalSteps={steps.length} />
       </div>
 
