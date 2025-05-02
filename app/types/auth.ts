@@ -8,6 +8,7 @@ export interface User {
   level: number;
   roles: string[];
   joinedAt: string; // Dodane pole
+  streak: number; // Dodane pole
 }
 
 export interface AuthState {

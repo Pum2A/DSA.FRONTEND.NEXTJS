@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Dodano useEffect
+import { useState, useEffect } from "react"; // Upewnij się, że useEffect jest importowany
 import useSWR from "swr";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -8,94 +8,93 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Flame, Calendar, TrendingUp, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// --- ZMODYFIKOWANY FETCHER ---
+// --- POPRAWIONY FETCHER DLA HttpOnly COOKIES ---
 const fetcher = async (url: string) => {
-  // Pobierz token - dostosuj 'authToken' do klucza, pod którym przechowujesz token JWT
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("jwt") : null; // Upewnij się, że localStorage jest dostępny
+  console.log(`[Fetcher] Fetching: ${url} with credentials`); // Logowanie
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`; // Dodaj nagłówek Authorization
-  }
-
-  console.log(`[Fetcher] Fetching: ${url}`); // Logowanie URL dla debugowania
-
-  const res = await fetch(url, { headers });
+  // WAŻNE: Dodajemy credentials: 'include', aby przeglądarka wysłała HttpOnly cookies
+  // Usuwamy logikę localStorage i nagłówka Authorization
+  const res = await fetch(url, { credentials: "include" });
 
   if (!res.ok) {
     console.error(
       `[Fetcher] Error: ${res.status} ${res.statusText} for ${url}`
     );
-    // Jeśli 401, może warto wylogować użytkownika lub spróbować odświeżyć token
     if (res.status === 401) {
       console.error(
-        "[Fetcher] Unauthorized access. Token might be invalid or expired."
+        "[Fetcher] Unauthorized access (401). Browser might not be sending cookies (check CORS Allow-Credentials, SameSite attributes on cookie, credentials: 'include' in fetch) or cookie is invalid/expired."
       );
-      // Możesz tutaj dodać logikę wylogowania, np.:
-      // if (typeof window !== 'undefined') {
-      //   localStorage.removeItem('authToken');
-      //   window.location.href = '/login'; // Przekieruj na stronę logowania
-      // }
+    } else if (res.status === 404) {
+      console.error(
+        "[Fetcher] Not Found (404). Check URL path and casing (e.g., /api/User/ vs /api/user/)."
+      );
     }
-    const error: any = new Error("Wystąpił błąd podczas pobierania danych."); // Użyj 'any' lub zdefiniuj własny typ błędu
+
+    const error: any = new Error(
+      "Wystąpił błąd podczas pobierania danych rankingu."
+    );
     error.status = res.status;
-    // Spróbuj dołączyć treść błędu, jeśli API ją zwraca
+
+    const responseBodyText = await res.text();
     try {
-      error.info = await res.json();
+      error.info = JSON.parse(responseBodyText);
     } catch (e) {
-      // Ignoruj błąd parsowania JSON, jeśli odpowiedź nie jest JSONem
-      error.info = { message: await res.text() }; // Przechowaj tekst odpowiedzi
+      error.info = { message: responseBodyText };
     }
     throw error;
   }
 
-  return res.json();
+  // Jeśli status jest OK, próbujemy sparsować JSON
+  try {
+    return await res.json();
+  } catch (jsonError) {
+    console.error(
+      `[Fetcher] Failed to parse JSON response for ${url}`,
+      jsonError
+    );
+    const error: any = new Error("Nie udało się sparsować odpowiedzi serwera.");
+    error.status = res.status; // Zachowaj oryginalny status
+    error.info = { message: "Invalid JSON response" };
+    throw error;
+  }
 };
-// --- KONIEC ZMODYFIKOWANEGO FETCHER ---
+// --- KONIEC POPRAWIONEGO FETCHER ---
 
 export default function RankingPage() {
   const [category, setCategory] = useState<"level" | "streak" | "joined-time">(
     "level"
   );
   const [page, setPage] = useState(1);
-  const limit = 10; // Number of players per page
+  const limit = 10;
 
-  // Odczytaj bazowy URL API ze zmiennej środowiskowej
-  // Upewnij się, że zmienna NEXT_PUBLIC_API_URL jest ustawiona w Vercel
+  // Nadal potrzebujemy pełnego URL i poprawnej wielkości liter
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  // Zbuduj pełny URL dla SWR
-  // Używamy `API_BASE_URL` tylko jeśli jest dostępny (po stronie klienta)
   const swrKey = API_BASE_URL
-    ? `${API_BASE_URL}/user/ranking/${category}?page=${page}&limit=${limit}`
+    ? `${API_BASE_URL}/api/User/ranking/${category}?page=${page}&limit=${limit}` // Poprawna wielkość liter 'User'
     : null;
 
   const {
     data: players,
     isLoading,
     error,
-    mutate, // Dodaj mutate do odświeżania danych
+    mutate,
   } = useSWR(
-    swrKey, // Użyj pełnego URL jako klucza SWR, lub null jeśli URL nie jest gotowy
-    fetcher,
+    swrKey,
+    fetcher, // Używamy fetchera z credentials: 'include'
     {
-      revalidateOnFocus: false, // Opcjonalnie: wyłącz odświeżanie przy focusie okna
-      shouldRetryOnError: false, // Opcjonalnie: wyłącz ponawianie przy błędzie (np. 401)
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
     }
   );
 
   // Efekt do resetowania strony przy zmianie kategorii
   useEffect(() => {
     setPage(1);
-    // Wymuś odświeżenie danych SWR po zmianie kategorii, jeśli klucz jest gotowy
     if (swrKey) {
-      mutate();
+      mutate(); // Ponownie pobierz dane dla nowej kategorii
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]); // Odświeżaj tylko przy zmianie kategorii
+  }, [category]); // Uruchamiaj tylko przy zmianie kategorii
 
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(1, prev - 1));
@@ -103,21 +102,21 @@ export default function RankingPage() {
   // Resetowanie strony, jeśli obecna strona jest pusta (poza pierwszą)
   useEffect(() => {
     if (page > 1 && players && players.length === 0 && !isLoading) {
-      setPage(page - 1); // Wróć do poprzedniej strony
+      setPage(page - 1);
     }
   }, [players, page, isLoading]);
 
-  // Obsługa błędu w komponencie
+  // Obsługa błędu w komponencie dla lepszego feedbacku
   if (error) {
     console.error("SWR Error Details:", error, error?.info);
   }
 
-  // Jeśli URL API nie jest jeszcze dostępny (np. przy SSR/prerenderingu bez zmiennej)
-  if (!API_BASE_URL) {
+  // Sprawdzenie, czy API_BASE_URL jest dostępny
+  if (!API_BASE_URL && typeof window !== "undefined") {
     return (
-      <p className="text-red-500">
-        Konfiguracja API (NEXT_PUBLIC_API_URL) jest niedostępna. Sprawdź zmienne
-        środowiskowe w Vercel.
+      <p className="text-red-500 text-center mt-10">
+        Błąd konfiguracji: Zmienna środowiskowa NEXT_PUBLIC_API_URL nie jest
+        ustawiona w środowisku frontendu (Vercel).
       </p>
     );
   }
@@ -135,7 +134,7 @@ export default function RankingPage() {
       {/* Użyj kontrolowanego komponentu Tabs */}
       <Tabs
         value={category}
-        onValueChange={(value) => setCategory(value as any)}
+        onValueChange={(value) => setCategory(value as any)} // Kontroluj zmianę tabsa
         className="mb-8"
       >
         <TabsList className="mb-4">
@@ -153,11 +152,11 @@ export default function RankingPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Użyj key={category}, aby wymusić ponowne renderowanie TabsContent przy zmianie kategorii */}
+        {/* Użyj key={category}, aby wymusić odświeżenie zawartości przy zmianie kategorii */}
         <TabsContent value={category} key={category}>
           {isLoading && !error ? ( // Pokaż Skeleton tylko jeśli ładuje i nie ma błędu
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array(limit) // Pokaż tyle skeletonów ile limit
+              {Array(limit)
                 .fill(0)
                 .map((_, index) => (
                   <Card key={index}>
@@ -171,39 +170,43 @@ export default function RankingPage() {
             </div>
           ) : error ? (
             // Wyświetl bardziej szczegółowy błąd
-            <p className="text-red-500">
-              Wystąpił błąd podczas ładowania danych rankingu (
-              {error.status || "Network Error"}). Spróbuj ponownie później.
+            <div className="text-red-500 bg-red-50 p-4 rounded-md">
+              <p className="font-semibold">
+                Wystąpił błąd podczas ładowania danych rankingu (Status:{" "}
+                {error.status || "Network Error"}).
+              </p>
+              <p className="text-sm mt-1">
+                Sprawdź konfigurację CORS/Cookies lub spróbuj ponownie.
+              </p>
               {error.info && (
-                <pre className="mt-2 text-xs bg-red-100 p-2 rounded">
+                <pre className="mt-2 text-xs bg-red-100 p-2 rounded overflow-auto">
                   {JSON.stringify(error.info, null, 2)}
                 </pre>
               )}
-            </p>
+            </div>
           ) : !players || players.length === 0 ? (
-            <p className="text-gray-500">
-              Brak graczy do wyświetlenia w tej kategorii.
+            <p className="text-gray-500 text-center mt-10">
+              Brak graczy do wyświetlenia w tej kategorii na tej stronie.
             </p>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {players.map((player: any, index: number) => (
                   <Card key={player.id}>
-                    <CardHeader className="flex items-center gap-4 p-6">
-                      <div className="rounded-full bg-blue-100 p-4">
-                        <Trophy className="h-6 w-6 text-blue-500" />
+                    <CardHeader className="flex flex-row items-center gap-4 p-4 sm:p-6">
+                      <div className="flex-shrink-0 rounded-full bg-blue-100 p-3 sm:p-4">
+                        <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
                       </div>
-                      <div>
-                        <CardTitle>
+                      <div className="flex-grow min-w-0">
+                        <CardTitle className="text-base sm:text-lg truncate">
                           {index + 1 + (page - 1) * limit}. {player.firstName}{" "}
-                          {player.lastName} ({player.userName}){" "}
-                          {/* Dodano userName dla identyfikacji */}
+                          {player.lastName}
                         </CardTitle>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-xs sm:text-sm text-gray-500 truncate">
                           {category === "level"
                             ? `Level: ${player.level}`
                             : category === "streak"
-                            ? `Streak: ${player.streak}` // Zakładając, że API zwraca pole 'streak'
+                            ? `Streak: ${player.streak}`
                             : `Dołączono: ${new Date(
                                 player.joinedAt
                               ).toLocaleDateString()}`}
@@ -218,15 +221,16 @@ export default function RankingPage() {
               <div className="flex justify-between items-center mt-6">
                 <Button
                   onClick={handlePrevPage}
-                  disabled={page === 1 || isLoading} // Wyłącz przyciski podczas ładowania
+                  disabled={page === 1 || isLoading}
                   variant="outline"
                 >
                   Poprzednia
                 </Button>
-                <span className="text-gray-500">Strona {page}</span>
+                <span className="text-sm sm:text-base text-gray-500">
+                  Strona {page}
+                </span>
                 <Button
                   onClick={handleNextPage}
-                  // Wyłącz przycisk "Następna", jeśli załadowano mniej elementów niż limit lub trwa ładowanie
                   disabled={players.length < limit || isLoading}
                   variant="outline"
                 >
