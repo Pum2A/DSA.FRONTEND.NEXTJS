@@ -1,79 +1,77 @@
-import { useState } from "react";
-import { LoadingButton } from "../../ui/LoadingButton";
 import { Step } from "@/app/types";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // Shadcn Accordion
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
+// Propsy już nie zawierają onComplete ani isLoading
 interface ListStepProps {
   step: Step;
-  onComplete: () => void;
-  isLoading?: boolean;
 }
 
-export default function ListStep({
-  step,
-  onComplete,
-  isLoading = false,
-}: ListStepProps) {
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
-
-  const toggleItem = (itemId: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId]
-    );
-  };
-
-  // Jeśli nie mamy items w kroku, używamy pustej tablicy
+export default function ListStep({ step }: ListStepProps) {
+  // Użyj pustej tablicy, jeśli items nie istnieje
   const items = step.items || [];
 
   return (
-    <div className="list-step">
-      <h2 className="text-xl font-semibold mb-4">{step.title}</h2>
+    <div className="list-step space-y-4">
+      {/* Tytuł kroku, jeśli istnieje */}
+      {step.title && (
+        <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
+          {step.title}
+        </h2>
+      )}
 
+      {/* Opcjonalna treść wstępna */}
       {step.content && (
-        <div className="prose max-w-none mb-6">
-          <p>{step.content}</p>
+        <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+          >
+            {step.content}
+          </ReactMarkdown>
         </div>
       )}
 
-      <ul className="space-y-3 mb-6">
-        {items.map((item) => (
-          <li key={item.id} className="border rounded-md overflow-hidden">
-            <div
-              className="p-4 bg-gray-50 flex justify-between items-center cursor-pointer"
-              onClick={() => toggleItem(item.id)}
+      {/* Lista jako Accordion */}
+      {items.length > 0 ? (
+        <Accordion type="multiple" className="w-full space-y-3">
+          {items.map((item, index) => (
+            <AccordionItem
+              value={`item-${item.id || index}`}
+              key={item.id || index}
+              className="border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
             >
-              <span className="font-medium">{item.text}</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-5 w-5 transition-transform ${
-                  expandedItems.includes(item.id) ? "transform rotate-180" : ""
-                }`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
+              <AccordionTrigger className="px-4 py-3 text-left hover:no-underline text-base font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                {item.text}
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4 pt-0 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                {/* Użyj ReactMarkdown dla opisu, jeśli może zawierać formatowanie */}
+                <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 pt-3">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {item.description || "Brak opisu."}
+                  </ReactMarkdown>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      ) : (
+        <p className="text-gray-500 dark:text-gray-400 italic">
+          Brak elementów listy do wyświetlenia.
+        </p>
+      )}
 
-            {expandedItems.includes(item.id) && item.description && (
-              <div className="p-4 border-t">
-                <p>{item.description}</p>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <div className="flex justify-end">
-        <LoadingButton onClick={onComplete} isLoading={isLoading}>
-          Rozumiem
-        </LoadingButton>
-      </div>
+      {/* Przycisk "Rozumiem" został usunięty */}
     </div>
   );
 }

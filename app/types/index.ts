@@ -1,5 +1,7 @@
 // Podstawowe typy danych
 
+import { JSX } from "react";
+
 export interface TestCase {
   id: string; // Unikalne ID testu w ramach kroku
   input: string; // Dane wejściowe jako string (do sparsowania)
@@ -92,16 +94,16 @@ export interface UserStats {
 }
 
 // Typ dla ścieżki nauki na dashboard
-export interface LearningPath {
+export type LearningPath = {
   id: string;
   title: string;
   description: string;
   progress: number;
   completedLessons: number;
   totalLessons: number;
-  icon?: string; // Dodane pole
-  iconColor?: string; // Dodane pole
-}
+  icon?: string | JSX.Element;
+  iconColor?: string;
+};
 
 // Typ dla użytkownika z autoryzacji
 export interface User {

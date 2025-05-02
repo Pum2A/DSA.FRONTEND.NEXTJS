@@ -21,9 +21,26 @@ import {
   CheckCircle,
   BarChart3,
   CalendarClock,
+  // === NOWE IKONY DLA MODUŁÓW ===
+  Database,
+  Binary,
+  GitFork,
+  Network,
+  ArrowDownUp,
+  Gauge,
+  BrainCircuit,
+  Code2,
+  Package,
+  BookMarked,
+  Component,
+  ListTree,
+  Sigma,
+  SlidersHorizontal,
+  Rows,
+  Columns,
 } from "lucide-react";
 import { useAuthStore } from "@/app/store/authStore";
-import { Module, UserStats, LearningPath, User } from "@/app/types"; // Dodano User
+import { Module, User, UserStats, LearningPath } from "@/app/types"; // Upewnij się, że User i UserStats są tu poprawnie zdefiniowane
 import { apiService } from "@/app/lib/api";
 import {
   Card,
@@ -74,19 +91,60 @@ function toDateStringUTC(date: Date) {
   );
 }
 
+// === NOWA FUNKCJA: Wybór ikony dla modułu ===
+function getModuleIcon(moduleId: string, moduleTitle: string): JSX.Element {
+  const lowerCaseId = moduleId.toLowerCase();
+  const lowerCaseTitle = moduleTitle.toLowerCase();
+  const iconProps = { className: "w-5 h-5 sm:w-6 sm:h-6 text-white" }; // Domyślne propsy dla ikon modułów
+
+  if (lowerCaseId.includes("struct") || lowerCaseTitle.includes("struktur")) {
+    return <ListTree {...iconProps} />;
+  }
+  if (lowerCaseId.includes("sort") || lowerCaseTitle.includes("sortowan")) {
+    return <ArrowDownUp {...iconProps} />;
+  }
+  if (
+    lowerCaseId.includes("bst") ||
+    lowerCaseId.includes("tree") ||
+    lowerCaseTitle.includes("drzew")
+  ) {
+    return <Binary {...iconProps} />;
+  }
+  if (lowerCaseId.includes("complex") || lowerCaseTitle.includes("złożono")) {
+    return <Gauge {...iconProps} />;
+  }
+  if (lowerCaseId.includes("graph") || lowerCaseTitle.includes("graf")) {
+    return <GitFork {...iconProps} />; // Lub Network
+  }
+  if (lowerCaseId.includes("list") || lowerCaseTitle.includes("list")) {
+    return <Rows {...iconProps} />;
+  }
+  if (
+    lowerCaseId.includes("stack") ||
+    lowerCaseId.includes("queue") ||
+    lowerCaseTitle.includes("stos") ||
+    lowerCaseTitle.includes("kolej")
+  ) {
+    return <Columns {...iconProps} />;
+  }
+
+  // Domyślna ikona
+  return <Code2 {...iconProps} />;
+}
+
 // GŁÓWNY KOMPONENT DASHBOARD
 export default function DashboardPage() {
   const {
     isAuthenticated,
     user: authUser,
     isLoading: authLoading,
-  } = useAuthStore(); // Zmieniono user na authUser, aby uniknąć konfliktu
+  } = useAuthStore();
   const router = useRouter();
 
-  // Stany
+  // Stany (bez zmian)
   const [modules, setModules] = useState<Module[]>([]);
-  const [displayUser, setDisplayUser] = useState<User | null>(authUser); // Stan dla danych użytkownika z /Auth/user
-  const [stats, setStats] = useState<UserStats | null>(null); // Stan dla danych z /stats
+  const [displayUser, setDisplayUser] = useState<User | null>(authUser);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +154,7 @@ export default function DashboardPage() {
   const [dailyGoalCompleted, setDailyGoalCompleted] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0);
 
-  // Sprawdź autentykację
+  // Sprawdź autentykację (bez zmian)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push("/login");
   }, [isAuthenticated, authLoading, router]);
@@ -117,23 +175,20 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // === NOWA FUNKCJA POBIERANIA DANYCH ===
+  // Funkcja pobierania danych (logika bez zmian, tylko mapowanie ikon)
   const fetchDashboardData = useCallback(async () => {
-    if (!isAuthenticated || !authUser) return; // Używamy authUser ze store do warunku
-
+    if (!isAuthenticated || !authUser) return;
     setIsRefreshing(true);
     setError(null);
-
     try {
-      // Pobieramy WSZYSTKIE potrzebne dane równolegle
       const [
-        userDataResponse, // NOWE: Pobieramy dane z /Auth/user
+        userDataResponse,
         modulesResponse,
         statsResponse,
         streakResponse,
         historyResponse,
       ] = await Promise.all([
-        apiService.get<User>("Auth/user"), // Endpoint używany przez Navbar
+        apiService.get<User>("Auth/user"),
         apiService.lessons.getAllModules(),
         apiService.user.getStats(),
         apiService.user.getStreak(),
@@ -142,48 +197,39 @@ export default function DashboardPage() {
           : Promise.resolve([]),
       ]);
 
-      // 1. Ustawiamy dane użytkownika (źródło prawdy dla poziomu/XP)
       const fetchedUser = userDataResponse as User;
-      setDisplayUser(fetchedUser); // Ustawiamy aktualne dane użytkownika
-
-      // 2. Ustawiamy statystyki (inne niż poziom/XP)
+      setDisplayUser(fetchedUser);
       const statsData = statsResponse as UserStats;
-      setStats(statsData); // Ustawiamy statystyki z /stats
-
-      // 3. Przetwarzamy resztę danych jak wcześniej
+      setStats(statsData);
       const modulesData = modulesResponse as Module[];
       setModules(modulesData);
-
       const streakData = streakResponse as { streak: number };
       setStreak(streakData.streak || 0);
 
       let todayDateString = toDateStringUTC(new Date());
-      let goalDone = false;
-      if (Array.isArray(historyResponse)) {
-        goalDone = historyResponse.some(
+      let goalDone =
+        Array.isArray(historyResponse) &&
+        historyResponse.some(
           (a: UserActivity) =>
             a.actionType === UserActionType.LessonCompleted &&
             toDateStringUTC(new Date(a.actionTime)) === todayDateString
         );
-      }
       setDailyGoalCompleted(goalDone);
 
       if (Array.isArray(historyResponse)) {
         setRecentActivity(
           historyResponse.slice(0, 7).map((a: UserActivity, idx: number) => {
-            // Ograniczono do 7
             const map = actionTypeMap[a.actionType] || {
               icon: <Clock className="h-5 w-5 text-gray-400" />,
               label: `Aktywność`,
             };
-            let description = "";
+            let description = a.additionalInfo || "";
             if (a.actionType === UserActionType.LessonCompleted)
               description = `Ukończono lekcję: ${a.referenceId || "?"}`;
             else if (a.actionType === UserActionType.QuizCompleted)
               description = `Ukończono quiz: ${a.referenceId || "?"}`;
             else if (a.actionType === UserActionType.Login)
               description = "Logowanie do systemu";
-            else description = a.additionalInfo || "";
             return {
               id: a.id ?? idx,
               type: a.actionType,
@@ -198,7 +244,6 @@ export default function DashboardPage() {
         setRecentActivity([]);
       }
 
-      // Całkowity postęp (używamy danych ze statsData)
       if (statsData) {
         const totalProgress =
           statsData.totalLessonsCount > 0
@@ -214,7 +259,7 @@ export default function DashboardPage() {
         setOverallProgress(totalProgress);
       }
 
-      // Przetwarzanie ścieżek nauki (bez zmian w logice, tylko użycie modulesData)
+      // Przetwarzanie ścieżek nauki Z NOWYMI IKONAMI
       const sortedModules = [...modulesData].sort((a, b) => a.order - b.order);
       const moduleProgressPromises = sortedModules.map(async (module) => {
         const progress = await fetchModuleProgress(module.externalId);
@@ -227,16 +272,18 @@ export default function DashboardPage() {
                 )
               )
             : 0;
+        // === Użycie funkcji getModuleIcon ===
+        const iconElement = getModuleIcon(module.externalId, module.title);
         return {
           id: module.externalId,
           title: module.title,
           description: module.description,
-          icon: module.icon || "📚",
-          iconColor: module.iconColor || "#4F46E5",
+          icon: iconElement, // Przypisanie elementu JSX ikony
+          iconColor: module.iconColor || "#6366F1", // Kolor tła pozostaje
           progress: completionPercentage,
           completedLessons: progress.completedLessons,
           totalLessons: progress.totalLessons || module.lessons?.length || 0,
-        } as LearningPath;
+        } as LearningPath; // Typ LearningPath musi akceptować JSX.Element dla icon
       });
       const processedModules = await Promise.all(moduleProgressPromises);
       const sortedPaths = processedModules.sort((a, b) => {
@@ -253,9 +300,9 @@ export default function DashboardPage() {
           (a.progress === 0 || a.progress === 100)
         )
           return 1;
-        if (a.progress === 0 && b.progress !== 0) return -1; // Nierozpoczęte przed rozpoczętymi/ukończonymi
+        if (a.progress === 0 && b.progress !== 0) return -1;
         if (b.progress === 0 && a.progress !== 0) return 1;
-        return b.progress - a.progress; // Ukończone na końcu
+        return b.progress - a.progress;
       });
       setLearningPaths(sortedPaths);
     } catch (err) {
@@ -265,9 +312,9 @@ export default function DashboardPage() {
       setDataLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAuthenticated, authUser, fetchModuleProgress]); // Zależność od authUser
+  }, [isAuthenticated, authUser, fetchModuleProgress]);
 
-  // Efekty (bez zmian, używają nowej funkcji fetch)
+  // Efekty (bez zmian)
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -291,16 +338,16 @@ export default function DashboardPage() {
   }
   if (!isAuthenticated || !authUser) {
     return null;
-  } // Używamy authUser
+  }
 
-  // === PRZYGOTOWANIE DANYCH DO WYŚWIETLENIA ===
-  // Używamy displayUser jako głównego źródła dla poziomu/XP
+  // Przygotowanie danych do wyświetlenia (bez zmian)
   const currentLevel = displayUser?.level ?? 1;
   const currentXp = displayUser?.experiencePoints ?? 0;
-  // Pozostałe statystyki bierzemy ze stanu `stats`
   const completedLessons = stats?.completedLessonsCount ?? 0;
   const totalLessons = stats?.totalLessonsCount ?? 0;
 
+  // Typ LearningPath musi być zaktualizowany, aby pole 'icon' mogło być JSX.Element
+  // Jeśli LearningPath jest w @/app/types, zmień tam: icon?: string | JSX.Element;
   const loadingPaths: LearningPath[] = Array(3)
     .fill(0)
     .map((_, index) => ({
@@ -310,8 +357,8 @@ export default function DashboardPage() {
       progress: 0,
       completedLessons: 0,
       totalLessons: 0,
-      icon: "⏳",
-      iconColor: "#9CA3AF",
+      icon: <Clock className="w-6 h-6 text-gray-400" />,
+      iconColor: "#E5E7EB",
     }));
   const pathsToDisplay = dataLoading ? loadingPaths : learningPaths;
   const inProgressPaths = pathsToDisplay.filter(
@@ -328,8 +375,7 @@ export default function DashboardPage() {
       <div className="mb-6 md:mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-            Witaj, {displayUser?.firstName || displayUser?.userName}!{" "}
-            {/* Używamy displayUser */}
+            Witaj, {displayUser?.firstName || displayUser?.userName}!
           </h1>
           <p className="mt-1 text-gray-600 dark:text-gray-400">
             Twój panel postępów w nauce algorytmów i struktur danych.
@@ -360,9 +406,9 @@ export default function DashboardPage() {
 
       {/* Główna siatka */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 lg:mb-10">
-        {/* Lewa kolumna (większa) */}
+        {/* Lewa kolumna */}
         <div className="lg:col-span-2 space-y-6 lg:space-y-8">
-          {/* Karta postępów ogólnych */}
+          {/* Karta postępów */}
           <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
@@ -373,7 +419,6 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Całkowity postęp */}
               <div>
                 <div className="flex items-center justify-between text-sm mb-1">
                   <h3 className="font-medium text-gray-700 dark:text-gray-300">
@@ -389,9 +434,7 @@ export default function DashboardPage() {
                   aria-label={`Całkowity postęp: ${overallProgress}%`}
                 />
               </div>
-              {/* Statystyki szczegółowe */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Poziom */}
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl flex items-center gap-3 border border-blue-100 dark:border-blue-900 transition-transform hover:scale-[1.02]">
                   <div className="bg-gradient-to-br from-blue-400 to-indigo-500 p-2 rounded-lg shadow-inner text-white">
                     <Star className="h-5 w-5" />
@@ -409,7 +452,6 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                {/* Doświadczenie */}
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-4 rounded-xl flex items-center gap-3 border border-green-100 dark:border-green-900 transition-transform hover:scale-[1.02]">
                   <div className="bg-gradient-to-br from-green-400 to-emerald-500 p-2 rounded-lg shadow-inner text-white">
                     <Lightbulb className="h-5 w-5" />
@@ -427,7 +469,6 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                {/* Ukończone lekcje */}
                 <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/30 dark:to-amber-900/30 p-4 rounded-xl flex items-center gap-3 border border-yellow-100 dark:border-yellow-900 transition-transform hover:scale-[1.02]">
                   <div className="bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-lg shadow-inner text-white">
                     <BookOpen className="h-5 w-5" />
@@ -447,7 +488,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardContent>
-            {/* Rekomendacja */}
             {recommendedPath && !dataLoading && (
               <CardFooter className="pt-0">
                 <div className="w-full bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 p-4 rounded-lg border dark:border-gray-700">
@@ -462,15 +502,15 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    {/* === Zmienione renderowanie ikony === */}
                     <div
                       className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 shadow"
                       style={{
                         backgroundColor: recommendedPath.iconColor || "#6366F1",
                       }}
                     >
-                      <span className="text-2xl text-white">
-                        {recommendedPath.icon || "💡"}
-                      </span>
+                      {recommendedPath.icon}{" "}
+                      {/* Renderujemy bezpośrednio element JSX */}
                     </div>
                     <div className="flex-grow w-full sm:w-auto">
                       <h4 className="font-semibold text-gray-900 dark:text-gray-100">
@@ -502,7 +542,7 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* Zakładki z ścieżkami nauki */}
+          {/* Zakładki */}
           <Tabs defaultValue="in-progress">
             <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-grid mb-4 h-auto sm:h-10 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               <TabsTrigger
@@ -540,13 +580,10 @@ export default function DashboardPage() {
               </TabsTrigger>
             </TabsList>
             <div className="min-h-[250px]">
-              {" "}
-              {/* Minimalna wysokość dla zawartości zakładek */}
               {dataLoading && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
                   <Skeleton className="h-56 w-full rounded-lg" />
-                  <Skeleton className="h-56 w-full rounded-lg sm:hidden lg:block" />{" "}
-                  {/* Pokazuj drugi szkielet na lg */}
+                  <Skeleton className="h-56 w-full rounded-lg sm:hidden lg:block" />
                 </div>
               )}
               {!dataLoading && (
@@ -568,9 +605,7 @@ export default function DashboardPage() {
                                       path.iconColor || "#6366F1",
                                   }}
                                 >
-                                  <span className="text-xl text-white">
-                                    {path.icon || "📚"}
-                                  </span>
+                                  {path.icon}
                                 </div>
                                 <div>
                                   <CardTitle className="text-base font-semibold">
@@ -641,9 +676,7 @@ export default function DashboardPage() {
                                       path.iconColor || "#6366F1",
                                   }}
                                 >
-                                  <span className="text-xl text-white">
-                                    {path.icon || "📚"}
-                                  </span>
+                                  {path.icon}
                                 </div>
                                 <CardTitle className="text-base font-semibold">
                                   {path.title}
@@ -751,9 +784,8 @@ export default function DashboardPage() {
           </Tabs>
         </div>
 
-        {/* Prawa kolumna (mniejsza) */}
+        {/* Prawa kolumna */}
         <div className="lg:col-span-1 space-y-6 lg:space-y-8">
-          {/* Karta codziennej aktywności */}
           <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -762,7 +794,6 @@ export default function DashboardPage() {
               <CardDescription>Twoja seria i dzienne cele</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Streak */}
               <div className="flex items-center gap-4">
                 <div className="bg-gradient-to-br from-orange-400 to-red-500 p-3 rounded-full shadow-lg text-white">
                   <Flame className="h-7 w-7" />
@@ -780,7 +811,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-              {/* Dzienny cel */}
               <div className="pt-1">
                 <div className="flex justify-between items-center mb-1.5 text-sm">
                   <h3 className="font-medium text-gray-700 dark:text-gray-300">
@@ -811,8 +841,6 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Ostatnia aktywność */}
           <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -822,8 +850,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-5 max-h-96 overflow-y-auto pr-1 -mr-1">
-                {" "}
-                {/* Scroll */}
                 {(dataLoading || isRefreshing) &&
                   !recentActivity.length &&
                   Array.from({ length: 3 }).map((_, i) => (

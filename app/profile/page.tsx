@@ -180,15 +180,15 @@ export default function ProfilePage() {
 
       const statsData = statsResponse as UserStats;
       setStats({
-        // Ustawiamy staty, ale streak bierzemy z dedykowanego endpointu
-        ...statsData,
+        ...statsData, // Rozpakowujemy dane ze /stats
         streakDays:
-          (streakResponse &&
-          typeof streakResponse === "object" &&
-          "streak" in streakResponse
-            ? (streakResponse as { streak: number }).streak
-            : statsData.streakDays) || 0,
-        joinedAt: fetchedUser.joinedAt ?? statsData.joinedAt, // Bierzemy joinedAt z /Auth/user jeśli jest
+          (streakResponse as { streak: number })?.streak ??
+          statsData.streakDays ??
+          0,
+        // === ZMIANA PRIORYTETU ===
+        // Najpierw bierzemy joinedAt z /stats, jeśli nie ma, to z /Auth/user
+        joinedAt: statsData.joinedAt ?? fetchedUser.joinedAt,
+        // === KONIEC ZMIANY ===
       });
 
       if (Array.isArray(historyResponse)) {
@@ -446,8 +446,16 @@ export default function ProfilePage() {
               <Skeleton className="h-5 w-28 mx-auto sm:mx-0" />
             ) : (
               <div className="font-medium text-gray-700 dark:text-gray-300">
-                {stats?.joinedAt
-                  ? new Date(stats.joinedAt).toLocaleDateString("pl-PL")
+                {stats?.joinedAt &&
+                typeof stats.joinedAt === "string" &&
+                stats.joinedAt.length > 0 &&
+                !stats.joinedAt.startsWith("0001-01-01") && // Nadal sprawdzamy minimalną datę
+                !isNaN(new Date(stats.joinedAt).getTime())
+                  ? new Date(stats.joinedAt).toLocaleDateString("pl-PL", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })
                   : "N/A"}
               </div>
             )}

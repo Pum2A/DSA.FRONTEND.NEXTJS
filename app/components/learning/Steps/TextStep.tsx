@@ -1,50 +1,38 @@
 import { Step } from "@/app/types";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { LoadingButton } from "../../ui/LoadingButton";
+import remarkGfm from "remark-gfm"; // Dodaj dla lepszej obsługi markdown (np. tabele)
+import rehypeRaw from "rehype-raw"; // Dodaj dla obsługi HTML w markdown
 
+// Propsy już nie zawierają onComplete ani isLoading
 interface TextStepProps {
   step: Step;
-  onComplete: () => void;
-  isLoading?: boolean;
 }
 
-export default function TextStep({
-  step,
-  onComplete,
-  isLoading = false,
-}: TextStepProps) {
-  const [readConfirmed, setReadConfirmed] = useState(false);
-
+export default function TextStep({ step }: TextStepProps) {
   return (
-    <div className="text-step">
-      <h2 className="text-xl font-semibold mb-4">{step.title}</h2>
+    <div className="text-step space-y-4">
+      {/* Tytuł kroku, jeśli istnieje */}
+      {step.title && (
+        <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
+          {step.title}
+        </h2>
+      )}
 
-      <div className="prose max-w-none mb-6">
-        <ReactMarkdown>{step.content || ""}</ReactMarkdown>
-      </div>
-
-      <div className="mt-6 flex items-center justify-between">
-        <label className="flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={readConfirmed}
-            onChange={() => setReadConfirmed(!readConfirmed)}
-            className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <span>Przeczytałem i zrozumiałem</span>
-        </label>
-
-        <LoadingButton
-          onClick={onComplete}
-          disabled={!readConfirmed}
-          isLoading={isLoading}
-          variant={readConfirmed ? "default" : "secondary"}
+      {/* Treść markdown */}
+      <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]} // Uważaj na bezpieczeństwo, jeśli markdown pochodzi od użytkowników!
+          // Możesz dodać komponenty do nadpisania stylów, np. dla linków, nagłówków
+          // components={{
+          //   a: ({node, ...props}) => <a className="text-indigo-600 dark:text-indigo-400 hover:underline" {...props} />,
+          // }}
         >
-          Kontynuuj
-        </LoadingButton>
+          {step.content || ""}
+        </ReactMarkdown>
       </div>
+
+      {/* Przycisk "Kontynuuj" został usunięty - użytkownik użyje globalnego przycisku na LessonPage */}
     </div>
   );
 }

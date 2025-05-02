@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Dodano CardHeader, CardTitle
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  CheckCheck,
+  RefreshCcw,
+  ArrowLeft,
+  Sparkles,
+  Clock,
+  Star,
+} from "lucide-react"; // Dodano ikony
 import { Lesson, Step, UserProgress } from "@/app/types";
 import { apiService } from "@/app/lib/api";
 import StepRenderer from "@/app/components/learning/StepRenderer";
@@ -14,6 +25,8 @@ import ProgressBar from "@/app/components/learning/ProgressBar";
 import { LoadingButton } from "@/app/components/ui/LoadingButton";
 import { useUserStats } from "@/app/hooks/useUser";
 import { useNotifications } from "@/app/hooks/useNotifications";
+import Confetti from "react-confetti";
+import { useWindowSize } from "react-use";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{
@@ -28,226 +41,327 @@ export default function LessonPage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Spinner for step submission
-  const [isFinishing, setIsFinishing] = useState(false); // Spinner for lesson completion
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false); // Stan dla confetti
 
   const { refresh: refreshUserStats } = useUserStats();
   const { refresh: refreshNotifications } = useNotifications();
+  const { width, height } = useWindowSize(); // Pobierz rozmiar okna dla confetti
 
-  useEffect(() => {
-    const fetchLessonData = async () => {
-      if (!lessonId) return;
+  // Funkcja pobierania danych
+  const fetchLessonData = useCallback(async () => {
+    if (!lessonId) return;
+    try {
+      setLoading(true);
+      setError(null);
 
-      try {
-        setLoading(true);
+      const [lessonData, stepsData, progressData] = await Promise.all([
+        apiService.lessons.getLesson(lessonId),
+        apiService.lessons.getLessonSteps(lessonId),
+        apiService.lessons.getLessonProgress(lessonId).catch((err) => {
+          // Ignoruj 404 dla postępu, zwróć null
+          if ((err as any)?.response?.status === 404) return null;
+          throw err; // Rzuć inne błędy dalej
+        }),
+      ]);
 
-        // Fetch lesson data
-        const lessonData = (await apiService.lessons.getLesson(
-          lessonId
-        )) as Lesson;
-        setLesson(lessonData);
+      if (!lessonData) throw new Error("Lesson not found");
+      setLesson(lessonData as Lesson);
 
-        // Fetch steps
-        const stepsData = await apiService.lessons.getLessonSteps(lessonId);
-        const processedSteps = (stepsData as Step[]).map((step) => {
-          if (step.type === "quiz" && step.additionalData) {
-            try {
-              const quizData =
-                typeof step.additionalData === "string"
-                  ? JSON.parse(step.additionalData)
-                  : step.additionalData;
-
-              return {
-                ...step,
-                question: quizData.question || step.question,
-                options: quizData.options || step.options,
-                correctAnswer: quizData.correctAnswer || step.correctAnswer,
-                explanation: quizData.explanation || step.explanation,
-              };
-            } catch (error) {
-              console.error(
-                `Error parsing quiz data for step ${step.id}:`,
-                error
-              );
-              return step;
-            }
+      const processedSteps = (stepsData as Step[]).map((step) => {
+        if (step.type === "quiz" && step.additionalData) {
+          try {
+            const quizData =
+              typeof step.additionalData === "string"
+                ? JSON.parse(step.additionalData)
+                : step.additionalData;
+            return {
+              ...step,
+              question: quizData.question || step.question,
+              options: quizData.options || step.options,
+              correctAnswer: quizData.correctAnswer || step.correctAnswer,
+              explanation: quizData.explanation || step.explanation,
+            };
+          } catch (error) {
+            console.error(
+              `Error parsing quiz data for step ${step.id}:`,
+              error
+            );
+            return step;
           }
-          return step;
-        });
-
-        const sortedSteps = [...processedSteps].sort(
-          (a, b) => a.order - b.order
-        );
-        setSteps(sortedSteps);
-
-        // Fetch progress
-        const progressData = (await apiService.lessons.getLessonProgress(
-          lessonId
-        )) as UserProgress;
-        setProgress(progressData);
-
-        // Set the current step based on progress
-        if (progressData && progressData.currentStepIndex > 0) {
-          setCurrentStepIndex(progressData.currentStepIndex);
         }
-      } catch (err) {
-        console.error("Error fetching lesson data:", err);
-        setError(
-          "Nie udało się pobrać danych lekcji. Spróbuj odświeżyć stronę."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+        return step;
+      });
+      const sortedSteps = [...processedSteps].sort((a, b) => a.order - b.order);
+      setSteps(sortedSteps);
 
-    fetchLessonData();
+      setProgress(progressData as UserProgress | null);
+      if (
+        progressData &&
+        typeof (progressData as UserProgress).currentStepIndex === "number" &&
+        (progressData as UserProgress).currentStepIndex > 0
+      ) {
+        setCurrentStepIndex((progressData as UserProgress).currentStepIndex);
+      }
+    } catch (err: any) {
+      console.error("Error fetching lesson data:", err);
+      setError(
+        err.message === "Lesson not found"
+          ? "Nie znaleziono lekcji."
+          : "Nie udało się pobrać danych lekcji. Spróbuj ponownie."
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [lessonId]);
 
-  const handleNextStep = async () => {
-    if (!lesson || steps.length === 0) return;
+  useEffect(() => {
+    fetchLessonData();
+  }, [fetchLessonData]);
+
+  // Obsługa kroku
+  const handleStepAction = async (isCorrect?: boolean) => {
+    if (!lesson || steps.length === 0 || isSubmitting || isFinishing) return;
+
+    // Dla quizu, nie przechodź dalej jeśli odpowiedź jest niepoprawna
+    if (steps[currentStepIndex].type === "quiz" && isCorrect === false) {
+      // Można tu dodać logikę pokazania błędu/wskazówki w StepRenderer
+      return;
+    }
 
     setIsSubmitting(true);
-
     try {
-      // Save progress for the current step
-      await apiService.lessons.completeStep(
-        lessonId as string,
-        currentStepIndex
-      );
+      await apiService.lessons.completeStep(lessonId, currentStepIndex);
 
-      // If it's the last step, complete the lesson
       if (currentStepIndex >= steps.length - 1) {
         setIsSubmitting(false);
-        setIsFinishing(true); // Show finishing spinner
-
-        await completeLesson();
-        return;
+        await completeLesson(); // Przejdź do finalizacji
+      } else {
+        setCurrentStepIndex(currentStepIndex + 1);
+        // Zaktualizuj lokalny stan postępu (opcjonalnie)
+        setProgress(
+          (prev) =>
+            ({
+              ...prev,
+              currentStepIndex: currentStepIndex + 1,
+              isCompleted: false,
+            } as UserProgress)
+        );
       }
-
-      // Move to the next step
-      setCurrentStepIndex(currentStepIndex + 1);
     } catch (err) {
       console.error("Error completing step:", err);
-      alert("Wystąpił błąd przy zapisywaniu postępu. Spróbuj ponownie.");
+      setError("Wystąpił błąd przy zapisywaniu postępu."); // Ustawiamy błąd na stronie
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Kończenie lekcji
   const completeLesson = async () => {
-    setIsFinishing(true); // Pokaż spinner
-
+    setIsFinishing(true);
     try {
       await apiService.lessons.completeLesson(lessonId);
-
-      // Odśwież dane użytkownika i powiadomienia
       await Promise.all([refreshUserStats(), refreshNotifications()]);
-
-      // Emituj event `taskCompleted`
       const event = new CustomEvent("taskCompleted");
       window.dispatchEvent(event);
 
-      // Przekieruj do modułu
-      router.push(`/learning/${moduleId}?completed=${lessonId}`);
+      // Pokaż confetti!
+      setShowConfetti(true);
+      // Przekieruj po chwili
+      setTimeout(() => {
+        router.push(`/learning/${moduleId}?completed=${lessonId}`);
+      }, 3000); // Czas na podziwianie confetti
     } catch (error) {
       console.error("Błąd podczas kończenia lekcji:", error);
-      alert("Wystąpił błąd. Spróbuj ponownie.");
-    } finally {
-      setIsFinishing(false); // Ukryj spinner
+      setError("Wystąpił błąd podczas finalizowania lekcji.");
+      setIsFinishing(false); // Ukryj spinner, jeśli był błąd
     }
+    // Nie ukrywaj spinnera tutaj, jeśli jest sukces - przekierowanie go ukryje
   };
 
   const handlePreviousStep = () => {
-    if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1);
-    }
+    if (currentStepIndex > 0) setCurrentStepIndex(currentStepIndex - 1);
   };
 
+  // === ULEPSZONY STAN ŁADOWANIA ===
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Skeleton className="h-10 w-64 mb-2" />
-        <Skeleton className="h-5 w-32 mb-4" />
-        <Skeleton className="h-2 w-full mb-8" />
+      <div className="container mx-auto px-4 py-8 max-w-4xl animate-pulse">
+        <Button variant="ghost" size="sm" className="mb-6 opacity-50">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
+        </Button>
+        <Skeleton className="h-8 w-3/4 mb-2" />
+        <div className="flex justify-between mb-4">
+          <Skeleton className="h-4 w-1/4" />
+          <Skeleton className="h-4 w-1/4" />
+        </div>
+        <Skeleton className="h-2.5 w-full rounded-full mb-8" />
         <Card className="mb-6">
-          <CardContent className="p-6">
-            <Skeleton className="h-64 w-full" />
+          <CardContent className="p-6 space-y-4">
+            <Skeleton className="h-5 w-1/3 mb-4" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-10 w-1/2 mt-4" />
           </CardContent>
         </Card>
-        <Skeleton className="h-10 w-36" />
+        <div className="flex justify-between">
+          <Skeleton className="h-10 w-36" />
+          <Skeleton className="h-10 w-36" />
+        </div>
       </div>
     );
   }
 
+  // === ULEPSZONY STAN BŁĘDU ===
   if (error || !lesson) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Błąd</AlertTitle>
-          <AlertDescription>
-            {error || "Nie znaleziono lekcji"}
-          </AlertDescription>
-        </Alert>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Odśwież stronę
-        </Button>
+      <div className="container mx-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-center text-center min-h-[70vh]">
+        <AlertCircle className="h-16 w-16 text-red-500 mb-6" />
+        <h2 className="text-2xl font-semibold text-red-800 dark:text-red-200 mb-3">
+          Błąd Lekcji
+        </h2>
+        <p className="text-red-600 dark:text-red-300 mb-8 max-w-md">
+          {error || "Nie znaleziono danych lekcji."}
+        </p>
+        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/learning/${moduleId}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
+          </Button>
+          <Button onClick={fetchLessonData} variant="destructive">
+            <RefreshCcw className="mr-2 h-4 w-4" /> Spróbuj ponownie
+          </Button>
+        </div>
       </div>
     );
   }
 
+  // Przygotowanie danych kroku
   const currentStep = steps[currentStepIndex];
   const isLastStep = currentStepIndex === steps.length - 1;
 
+  // === GŁÓWNE RENDEROWANIE ===
   return (
-    <div className="container mx-auto px-4 py-8">
-      {isFinishing && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="text-white text-lg flex items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            Trwa zapisywanie postępu...
-          </div>
-        </div>
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      {" "}
+      {/* Ograniczenie szerokości dla czytelności */}
+      {/* Confetti na sukces! */}
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          recycle={false}
+          numberOfPieces={300}
+        />
       )}
-
+      {/* Nakładka podczas finalizacji */}
+      {isFinishing &&
+        !showConfetti && ( // Ukryj, gdy confetti jest aktywne
+          <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-400/80 to-emerald-600/90 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+            <Sparkles className="h-16 w-16 mb-4 animate-pulse" />
+            <p className="text-xl font-semibold mb-2">
+              Gratulacje! Lekcja ukończona!
+            </p>
+            <p className="text-sm">Zapisywanie postępu...</p>
+            <Loader2 className="h-6 w-6 animate-spin mt-4" />
+          </div>
+        )}
+      {/* Przycisk powrotu */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.push(`/learning/${moduleId}`)}
+        className="mb-6 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
+      </Button>
+      {/* Nagłówek lekcji i postęp */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">{lesson.title}</h1>
-        <div className="flex justify-between text-sm text-gray-600 mb-4">
-          <span>Szacowany czas: {lesson.estimatedTime}</span>
-          <span>XP: {lesson.xpReward}</span>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-gray-900 dark:text-gray-100">
+          {lesson.title}
+        </h1>
+        <div className="flex flex-col sm:flex-row justify-between text-sm text-gray-500 dark:text-gray-400 mb-4 gap-2">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> {lesson.estimatedTime}
+            </span>
+            <span className="flex items-center gap-1">
+              <Star className="w-3.5 h-3.5" /> {lesson.xpReward} XP
+            </span>
+          </div>
+          <span className="font-medium">
+            Krok {currentStepIndex + 1} z {steps.length}
+          </span>
         </div>
         <ProgressBar currentStep={currentStepIndex} totalSteps={steps.length} />
       </div>
-
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          {currentStep ? (
+      {/* Karta z treścią kroku */}
+      <Card className="mb-6 shadow-lg border dark:border-gray-700">
+        {currentStep ? (
+          <CardContent className="p-6 md:p-8">
+            {/* Opcjonalny tytuł kroku, jeśli istnieje */}
+            {currentStep.title && (
+              <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-gray-700">
+                {currentStep.title}
+              </h2>
+            )}
             <StepRenderer
               step={currentStep}
-              onComplete={handleNextStep}
+              onComplete={(isCorrect) => handleStepAction(isCorrect)} // Przekazujemy wynik quizu
               isLoading={isSubmitting}
+              key={currentStep.id} // Dodano key dla pewności re-renderowania
             />
-          ) : (
-            <div className="text-center p-4">
-              <p>Nie znaleziono kroków dla tej lekcji.</p>
-            </div>
-          )}
-        </CardContent>
+          </CardContent>
+        ) : (
+          <CardContent className="p-10 text-center text-gray-500">
+            <p>Nie można załadować tego kroku.</p>
+          </CardContent>
+        )}
       </Card>
-
-      <div className="flex justify-between">
+      {/* Nawigacja */}
+      <div className="flex justify-between items-center">
         <Button
           onClick={handlePreviousStep}
-          disabled={currentStepIndex === 0}
+          disabled={currentStepIndex === 0 || isSubmitting || isFinishing}
           variant="outline"
+          size="lg"
+          className="shadow-sm"
         >
-          <ChevronLeft className="mr-2 h-4 w-4" /> Poprzedni krok
+          <ChevronLeft className="mr-2 h-5 w-5" /> Poprzedni
         </Button>
 
-        <LoadingButton onClick={handleNextStep} isLoading={isSubmitting}>
-          {isLastStep ? "Zakończ lekcję" : "Następny krok"}{" "}
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </LoadingButton>
+        {/* Użyj onComplete z StepRenderer zamiast tego przycisku, jeśli StepRenderer ma własny przycisk */}
+        {/* Jeśli StepRenderer NIE MA własnego przycisku akcji: */}
+        {currentStep && ( // Pokaż przycisk, jeśli currentStep istnieje
+          <LoadingButton
+            onClick={() => handleStepAction()} // Wywołaj bez argumentu dla kroków innych niż quiz
+            isLoading={isSubmitting}
+            disabled={isFinishing}
+            size="lg"
+            className="shadow-md bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+          >
+            {isLastStep ? "Zakończ lekcję" : "Następny krok"}
+            <ChevronRight className="ml-2 h-5 w-5" />
+          </LoadingButton>
+        )}
+        {/* Jeśli jest ostatni krok i *wymaga* akcji (np. quiz), przycisk Zakończ może być w StepRenderer */}
+        {/* Alternatywnie, ZAWSZE pokazuj przycisk, a StepRenderer tylko zwraca wynik */}
+        {/* Poniżej wersja, która ZAWSZE pokazuje przycisk Dalej/Zakończ, zakładając, że StepRenderer wywoła onComplete */}
+        {/*
+         <LoadingButton
+           onClick={handleStepAction} // StepRenderer musi wywołać onComplete(true/false)
+           isLoading={isSubmitting}
+           disabled={isFinishing || (currentStep?.type === 'quiz' && !stepCompleted)} // Przykład blokady dla quizu
+           size="lg"
+           className="shadow-md bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+         >
+           {isLastStep ? "Zakończ lekcję" : "Następny krok"}
+           <ChevronRight className="ml-2 h-5 w-5" />
+         </LoadingButton>
+         */}
       </div>
     </div>
   );

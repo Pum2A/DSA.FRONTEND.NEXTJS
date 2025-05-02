@@ -1,48 +1,57 @@
 import { Step } from "@/app/types";
-import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { LoadingButton } from "../../ui/LoadingButton";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
+// Propsy już nie zawierają onComplete ani isLoading
 interface ImageStepProps {
   step: Step;
-  onComplete: () => void;
-  isLoading?: boolean; // Dodana właściwość isLoading
 }
 
-export default function ImageStep({
-  step,
-  onComplete,
-  isLoading = false,
-}: ImageStepProps) {
+export default function ImageStep({ step }: ImageStepProps) {
   return (
-    <div className="image-step">
-      <h2 className="text-xl font-semibold mb-4">{step.title}</h2>
+    <div className="image-step space-y-4">
+      {/* Tytuł kroku, jeśli istnieje */}
+      {step.title && (
+        <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
+          {step.title}
+        </h2>
+      )}
 
+      {/* Opcjonalna treść/opis */}
       {step.content && (
-        <div className="prose max-w-none mb-6">
-          <p>{step.content}</p>
+        <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+          >
+            {step.content}
+          </ReactMarkdown>
         </div>
       )}
 
-      <div className="mb-6 flex justify-center">
-        {step.imageUrl && (
-          <div className="relative max-w-2xl">
+      {/* Obrazek */}
+      <div className="mt-4 flex justify-center">
+        {step.imageUrl ? (
+          <figure className="max-w-3xl w-full overflow-hidden rounded-lg border dark:border-gray-700 shadow-md bg-white dark:bg-gray-800">
             <Image
               src={step.imageUrl}
-              alt={step.title}
-              width={800}
-              height={500}
-              className="rounded-md"
+              alt={step.title || "Ilustracja kroku"} // Lepszy alt text
+              width={1000} // Zwiększ domyślną szerokość dla jakości
+              height={600} // Zwiększ domyślną wysokość
+              className="object-contain w-full h-auto" // Dopasuj obrazek
+              priority // Opcjonalnie, jeśli to ważny obrazek
             />
-          </div>
+            {/* Opcjonalny podpis pod obrazkiem, jeśli istnieje */}
+            {/* <figcaption className="p-2 text-center text-xs text-gray-500 dark:text-gray-400">{step.title}</figcaption> */}
+          </figure>
+        ) : (
+          <p className="text-gray-500 italic">Brak obrazka do wyświetlenia.</p>
         )}
       </div>
 
-      <div className="flex justify-end">
-        <LoadingButton onClick={onComplete} isLoading={isLoading}>
-          Kontynuuj
-        </LoadingButton>
-      </div>
+      {/* Przycisk "Kontynuuj" został usunięty */}
     </div>
   );
 }

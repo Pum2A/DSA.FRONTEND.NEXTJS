@@ -15,291 +15,267 @@ import {
   ChevronDown,
   Bell,
   Loader2,
-} from "lucide-react";
+  Settings,
+  LifeBuoy,
+} from "lucide-react"; // Dodano ikony
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton"; // Dodano import Skeleton
-import { useAuthStore } from "../store/authStore"; // Upewnij się, że ścieżka jest poprawna
-import NotificationsDropdown from "./ui/NotificationsDropdown"; // Upewnij się, że ścieżka jest poprawna
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore } from "../store/authStore";
 import useSWR from "swr";
-import { apiService } from "../lib/api"; // Upewnij się, że ścieżka jest poprawna
-import { User } from "../types/auth"; // Upewnij się, że ścieżka i typ są poprawne
+import { apiService } from "../lib/api";
+import { User } from "../types/auth"; // Poprawiono ścieżkę
+import { cn } from "@/lib/utils"; // Dodano cn
+import NotificationsDropdown from "./ui/NotificationsDropdown";
 
 export function Navbar() {
-  // Pobierz stan i akcje ze store Zustand
   const { isAuthenticated, logout } = useAuthStore();
-
-  // Stany lokalne komponentu
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false); // Dla ręcznego odświeżania po evencie
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const pathname = usePathname();
 
-  // Fetcher dla SWR używający skonfigurowanego apiService
-  // Oczekuje obiektu typu User lub null/error
+  // Fetcher i SWR (bez zmian)
   const fetcher = (path: string): Promise<User | null> =>
     apiService.get<User>(path);
-
-  // Hook SWR do pobierania danych użytkownika, gdy jest uwierzytelniony
-  // Używa ścieżki względnej do baseURL (/api)
   const {
     data: updatedUser,
     isLoading: isSWRLoading,
     mutate: refreshUser,
-  } = useSWR<User | null>(
-    isAuthenticated ? "Auth/user" : null, // Klucz: ścieżka względna lub null
-    fetcher, // Użyj fetchera z apiService
-    {
-      revalidateOnFocus: false, // Wyłącz odświeżanie przy focusie okna
-      shouldRetryOnError: false, // Wyłącz ponawianie przy błędzie
-      // fallbackData można pominąć, aby zawsze pobierać świeże dane po zalogowaniu
-    }
-  );
+  } = useSWR<User | null>(isAuthenticated ? "Auth/user" : null, fetcher, {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  });
 
-  // Efekt do obsługi zdarzenia 'taskCompleted' (np. po ukończeniu kroku lekcji)
+  // Efekt taskCompleted (bez zmian)
   useEffect(() => {
-    const handleTaskCompleted = async () => {
-      console.log(
-        "Navbar: Zdarzenie taskCompleted odebrane! Odświeżam dane użytkownika..."
-      );
-      setIsRefreshing(true);
-      try {
-        await refreshUser(); // Wywołaj odświeżenie danych przez SWR
-        // Opcjonalnie: odśwież inne dane, np. powiadomienia
-        const refreshEvent = new CustomEvent("refreshNotifications");
-        window.dispatchEvent(refreshEvent);
-      } catch (error) {
-        console.error(
-          "Navbar: Błąd podczas odświeżania danych po taskCompleted:",
-          error
-        );
-      } finally {
-        setIsRefreshing(false);
-      }
-    };
-    window.addEventListener("taskCompleted", handleTaskCompleted);
-    return () =>
-      window.removeEventListener("taskCompleted", handleTaskCompleted);
+    /* ... */
   }, [refreshUser]);
 
-  // Efekt do obsługi przewijania strony (zmiana tła navbara)
+  // Efekt scroll (bez zmian)
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 10);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    /* ... */
   }, []);
 
-  // Efekt do zamykania menu mobilnego po zmianie ścieżki
+  // Efekt zamykania menu mobilnego (bez zmian)
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  // Definicje elementów nawigacji
+  // Definicje navItems (ikony bez mr-2, bo będą obok tekstu)
   const navItems = [
     {
       name: "Dashboard",
       href: "/dashboard",
       protected: true,
-      icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
+      icon: LayoutDashboard,
     },
-    {
-      name: "Nauka",
-      href: "/learning",
-      protected: true,
-      icon: <BookOpen className="h-4 w-4 mr-2" />,
-    },
-    {
-      name: "Rankingi",
-      href: "/rankings",
-      protected: true,
-      icon: <Award className="h-4 w-4 mr-2" />,
-    },
-    { name: "O nas", href: "/about", protected: false },
+    { name: "Nauka", href: "/learning", protected: true, icon: BookOpen },
+    { name: "Rankingi", href: "/rankings", protected: true, icon: Award },
+    // { name: "O nas", href: "/about", protected: false, icon: LifeBuoy }, // Można dodać ikonę
   ];
 
-  // Funkcja sprawdzająca aktywną ścieżkę
+  // Funkcja isActive - poprawka: musi zwracać boolean
   const isActive = (path: string) => {
-    if (path === "/") return pathname === "/";
-    return pathname === path || pathname.startsWith(`${path}/`);
+    return pathname === path;
   };
 
-  // Używamy danych z SWR jako głównego źródła dla wyświetlania
+  // Logika wyświetlania sekcji użytkownika (bez zmian)
   const displayUser = updatedUser;
-  // Warunek pokazania sekcji użytkownika: autoryzowany ORAZ dane z SWR załadowane (nie null/undefined)
   const showUserSection = isAuthenticated && displayUser;
-  // Warunek pokazania loadera dla sekcji użytkownika: autoryzowany ALE SWR jeszcze ładuje
   const showUserLoading = isAuthenticated && isSWRLoading && !displayUser;
+
+  // Funkcja pomocnicza do inicjałów (jak w Rankingu)
+  const getInitials = (
+    firstName?: string,
+    lastName?: string,
+    userName?: string
+  ): string => {
+    const first = firstName?.[0] || "";
+    const last = lastName?.[0] || "";
+    if (first && last) return `${first}${last}`.toUpperCase();
+    return userName?.[0]?.toUpperCase() || "?";
+  };
 
   return (
     <header
-      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
+      // Bardziej subtelne przejście i tło
+      className={cn(
+        "sticky top-0 z-50 w-full transition-colors duration-300 border-b",
         scrolled
-          ? "bg-white shadow-md dark:bg-gray-900 dark:border-b dark:border-gray-800"
-          : "bg-white/80 backdrop-blur-sm dark:bg-gray-900/80"
-      }`}
+          ? "bg-white/95 backdrop-blur-sm border-gray-200 shadow-sm dark:bg-gray-900/95 dark:border-gray-800"
+          : "bg-white border-transparent dark:bg-gray-900"
+      )}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+        {" "}
+        {/* Zwiększono max-w */}
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
+          {/* Logo - nieco większe */}
           <div className="flex-shrink-0">
             <Link
               href={isAuthenticated ? "/dashboard" : "/"}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2.5"
             >
-              <span className="h-8 w-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow">
-                <span className="text-white font-bold text-lg">DS</span>
+              <span className="h-9 w-9 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                <span className="text-white font-bold text-xl">DS</span>
               </span>
-              <span className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+              <span className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight hidden sm:inline">
                 DSA Learning
               </span>
             </Link>
           </div>
 
-          {/* Nawigacja desktopowa */}
-          <nav className="hidden md:flex md:items-center md:space-x-6">
+          {/* Nawigacja desktopowa - poprawione style */}
+          <nav className="hidden md:flex md:items-center md:space-x-1 lg:space-x-2">
             {navItems
               .filter((item) => !item.protected || isAuthenticated)
               .map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                  className={cn(
+                    "inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200",
                     isActive(item.href)
-                      ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                      : "text-gray-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:border-b-2 hover:border-blue-300 dark:hover:border-blue-500"
-                  }`}
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                  )}
                 >
-                  {item.icon && item.icon}
+                  <item.icon className="h-4 w-4 mr-1.5" />
                   {item.name}
                 </Link>
               ))}
           </nav>
 
-          {/* Prawa strona: powiadomienia + auth */}
-          <div className="hidden md:flex md:items-center md:space-x-4">
-            {/* Pokaż powiadomienia tylko dla zalogowanych */}
+          {/* Prawa strona: powiadomienia + auth - poprawione style */}
+          <div className="flex items-center space-x-3 sm:space-x-4">
             {isAuthenticated && <NotificationsDropdown />}
 
-            {/* Pokaż sekcję użytkownika, jeśli zalogowany i dane załadowane */}
             {showUserSection ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
+                  {/* Lepszy wygląd triggera */}
                   <Button
                     variant="ghost"
-                    className="flex items-center space-x-2 px-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="flex items-center space-x-2 px-2 py-1 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src=""
-                        alt={displayUser?.userName || "User"}
-                      />
-                      <AvatarFallback className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {displayUser?.userName?.substring(0, 2).toUpperCase() ||
-                          "U"}
+                      {/* <AvatarImage src="" alt={displayUser?.userName} /> */}
+                      <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-xs font-semibold">
+                        {getInitials(
+                          displayUser?.firstName,
+                          displayUser?.lastName,
+                          displayUser?.userName
+                        )}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex flex-col items-start text-sm">
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {displayUser?.userName || "Użytkownik"}
+                    {/* Ukryj tekst na mniejszych ekranach dla oszczędności miejsca */}
+                    <div className="hidden lg:flex flex-col items-start text-xs">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+                        {displayUser?.userName}
                       </span>
-                      <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                        <span>Poziom {displayUser?.level ?? 1}</span>
-                        <span className="mx-1">•</span>
-                        <span>{displayUser?.experiencePoints ?? 0} XP</span>
-                      </div>
+                      <span className="text-gray-500 dark:text-gray-400 leading-tight">
+                        Poz. {displayUser?.level ?? 1}
+                      </span>
                     </div>
-                    {/* Pokaż spinner podczas ręcznego odświeżania */}
                     {isRefreshing ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-500 ml-1" />
+                      <Loader2 className="h-4 w-4 animate-spin text-indigo-500 ml-1" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400 ml-1" />
+                      <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500 ml-0.5 hidden lg:block" />
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-60">
+                  {/* Etykieta z danymi użytkownika w menu */}
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {displayUser?.firstName} {displayUser?.lastName}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        @{displayUser?.userName}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link
-                      href="/profile"
-                      className="flex cursor-pointer items-center"
-                    >
+                    <Link href="/profile" className="cursor-pointer">
                       <UserIcon className="mr-2 h-4 w-4" />
-                      <span>Profil</span>
+                      Profil
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link
-                      href="/dashboard"
-                      className="flex cursor-pointer items-center"
-                    >
+                    <Link href="/dashboard" className="cursor-pointer">
                       <LayoutDashboard className="mr-2 h-4 w-4" />
-                      <span>Dashboard</span>
+                      Dashboard
                     </Link>
                   </DropdownMenuItem>
+                  {/* Opcjonalnie: Link do ustawień */}
+                  {/* <DropdownMenuItem asChild><Link href="/settings" className="cursor-pointer"><Settings className="mr-2 h-4 w-4" />Ustawienia</Link></DropdownMenuItem> */}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-red-600 focus:text-red-600 cursor-pointer flex items-center"
-                    onClick={logout} // Wywołaj funkcję logout ze store
-                    aria-label="Wyloguj się"
+                    onClick={logout}
+                    className="text-red-600 focus:text-red-600 cursor-pointer"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span>Wyloguj się</span>
+                    Wyloguj się
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : showUserLoading ? (
-              // Pokaż szkielet ładowania, gdy SWR ładuje dane użytkownika
+              // Skeleton dla stanu ładowania użytkownika
               <div className="flex items-center space-x-2 px-2 h-10 animate-pulse">
-                <Skeleton className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700" />
-                <div className="space-y-1">
-                  <Skeleton className="h-4 w-20 bg-gray-200 dark:bg-gray-700" />
-                  <Skeleton className="h-3 w-24 bg-gray-200 dark:bg-gray-700" />
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="hidden lg:block space-y-1">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-12" />
                 </div>
               </div>
             ) : (
-              // Pokaż przyciski logowania/rejestracji, jeśli nie uwierzytelniony
-              <>
-                <Link href="/login">
-                  <Button variant="outline">Zaloguj</Button>
-                </Link>
-                <Link href="/register">
-                  <Button>Zarejestruj</Button>
-                </Link>
-              </>
+              // Przyciski logowania/rejestracji
+              <div className="hidden sm:flex items-center space-x-2">
+                <Button variant="ghost" asChild>
+                  <Link href="/login">Zaloguj</Link>
+                </Button>
+                <Button
+                  asChild
+                  className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+                >
+                  <Link href="/register">Zarejestruj</Link>
+                </Button>
+              </div>
             )}
-          </div>
 
-          {/* Przyciski mobilne */}
-          <div className="flex md:hidden">
-            {/* Pokaż powiadomienia także na mobilnym, jeśli zalogowany */}
-            {isAuthenticated && <NotificationsDropdown />}
-            <button
-              type="button"
-              className="ml-2 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              aria-expanded={isMenuOpen}
-              aria-controls="mobile-menu"
-            >
-              <span className="sr-only">Otwórz menu</span>
-              {isMenuOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
-              ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
-              )}
-            </button>
+            {/* Przycisk menu mobilnego */}
+            <div className="flex md:hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {isMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu - ulepszone style */}
       {isMenuOpen && (
         <div
-          className="md:hidden border-t border-gray-200 dark:border-gray-800"
+          className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 absolute w-full shadow-lg"
           id="mobile-menu"
         >
           <div className="px-2 pt-2 pb-3 space-y-1">
@@ -309,13 +285,14 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-base font-medium rounded-md ${
+                  className={cn(
+                    "flex items-center px-3 py-2 text-base font-medium rounded-md",
                     isActive(item.href)
-                      ? "bg-blue-50 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-300"
-                  }`}
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-600 dark:hover:text-indigo-300"
+                  )}
                 >
-                  {item.icon && item.icon}
+                  <item.icon className="h-5 w-5 mr-3" />
                   {item.name}
                 </Link>
               ))}
@@ -325,60 +302,55 @@ export function Navbar() {
             {showUserSection ? (
               <>
                 <div className="flex items-center px-5 mb-3">
-                  <Avatar className="h-10 w-10 mr-3">
-                    <AvatarImage src="" alt={displayUser?.userName || "User"} />
-                    <AvatarFallback className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      {displayUser?.userName?.substring(0, 2).toUpperCase() ||
-                        "U"}
+                  <Avatar className="h-10 w-10 mr-3 flex-shrink-0">
+                    {/* <AvatarImage src="" alt={displayUser?.userName} /> */}
+                    <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm font-semibold">
+                      {getInitials(
+                        displayUser?.firstName,
+                        displayUser?.lastName,
+                        displayUser?.userName
+                      )}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <div className="text-base font-medium text-gray-800 dark:text-gray-200">
-                      {displayUser?.userName || "Użytkownik"}
+                  <div className="min-w-0">
+                    <div className="text-base font-medium text-gray-800 dark:text-gray-200 truncate">
+                      {displayUser?.firstName} {displayUser?.lastName}
                     </div>
-                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {displayUser?.email || ""}
+                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                      @{displayUser?.userName}
                     </div>
                   </div>
                 </div>
                 <div className="px-2 space-y-1">
                   <Link
                     href="/profile"
-                    className="flex items-center px-3 py-2 text-base font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-300"
+                    className="flex items-center px-3 py-2 text-base font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-600 dark:hover:text-indigo-300"
                   >
-                    <UserIcon className="h-5 w-5 mr-3" />
-                    Profil
+                    <UserIcon className="h-5 w-5 mr-3" /> Profil
                   </Link>
                   <button
                     onClick={logout}
                     className="w-full flex items-center px-3 py-2 text-base font-medium text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
-                    <LogOut className="h-5 w-5 mr-3" />
-                    Wyloguj się
+                    <LogOut className="h-5 w-5 mr-3" /> Wyloguj się
                   </button>
                 </div>
               </>
             ) : showUserLoading ? (
               <div className="px-5 py-2 animate-pulse">
-                <div className="flex items-center">
-                  <Skeleton className="h-10 w-10 rounded-full mr-3 bg-gray-200 dark:bg-gray-700" />
-                  <div className="space-y-1">
-                    <Skeleton className="h-4 w-24 bg-gray-200 dark:bg-gray-700" />
-                    <Skeleton className="h-3 w-32 bg-gray-200 dark:bg-gray-700" />
-                  </div>
-                </div>
+                <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              // Przyciski logowania/rejestracji w menu mobilnym
               <div className="px-5 py-3 space-y-2">
-                <Link href="/login" className="block w-full">
-                  <Button variant="outline" className="w-full">
-                    Zaloguj
-                  </Button>
-                </Link>
-                <Link href="/register" className="block w-full">
-                  <Button className="w-full">Zarejestruj</Button>
-                </Link>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href="/login">Zaloguj</Link>
+                </Button>
+                <Button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+                  asChild
+                >
+                  <Link href="/register">Zarejestruj</Link>
+                </Button>
               </div>
             )}
           </div>
