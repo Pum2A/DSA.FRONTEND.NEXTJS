@@ -1,4 +1,12 @@
 // Podstawowe typy danych
+
+export interface TestCase {
+  id: string; // Unikalne ID testu w ramach kroku
+  input: string; // Dane wejściowe jako string (do sparsowania)
+  expectedOutput: string; // Oczekiwany wynik jako string (do sparsowania i porównania)
+  description?: string; // Opcjonalny opis testu
+}
+
 export interface Step {
   id: number;
   type: string;
@@ -14,20 +22,26 @@ export interface Step {
   options?: Array<{ id: string; text: string; correct?: boolean }>;
   correctAnswer?: string;
   explanation?: string;
-  // Dodatkowe pola dla interactive i challenge
+  // Dodatko
+  // we pola dla interactive i challenge
   initialCode?: string;
   expectedOutput?: string;
-  testCases?: {
-    id: string;
-    input: string;
-    expectedOutput: string;
-    description?: string;
-  }[];
   solution?: string;
   hint?: string;
   // Dodatkowe pola dla list
   items?: { id: string; text: string; description?: string }[];
   additionalData?: string | any;
+  stepType: "interactive" | "text" | "video" | "quiz" | string; // Dodaj 'interactive' i inne typy
+  testCases?: TestCase[]; // Używa zdefiniowanego wyżej typu TestCase
+}
+
+export interface TestResult {
+  id: string; // ID z TestCase
+  status: "pass" | "fail" | "error"; // Status testu
+  inputDisplay: string; // Oryginalny input jako string do wyświetlenia
+  expectedOutputDisplay: string; // Oryginalny oczekiwany output jako string do wyświetlenia
+  actualOutputDisplay: string | null; // Aktualny output jako string (lub null przy błędzie)
+  error: string | null; // Komunikat błędu (jeśli status='error' lub czasem 'fail')
 }
 
 export interface Lesson {
