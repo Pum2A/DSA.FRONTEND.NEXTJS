@@ -1,7 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 
-const API_URL = "https://dsadotnet-481e228cd0ec.herokuapp.com/api";
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 // Funkcja pomocnicza do pobierania tokenu
 const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
