@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 const fetcher = async (url: string) => {
   // Pobierz token - dostosuj 'authToken' do klucza, pod którym przechowujesz token JWT
   const token =
-    typeof window !== "undefined" ? localStorage.getItem("authToken") : null; // Upewnij się, że localStorage jest dostępny
+    typeof window !== "undefined" ? localStorage.getItem("jwt") : null; // Upewnij się, że localStorage jest dostępny
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",

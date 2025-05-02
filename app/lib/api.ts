@@ -4,7 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 // Funkcja pomocnicza do pobierania tokenu
 const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("auth_token");
+  return localStorage.getItem("jwt");
 };
 
 const api = axios.create({
@@ -59,7 +59,7 @@ api.interceptors.response.use(
       // Obsługa błędów autoryzacji (401)
       if (error.response.status === 401) {
         // Opcjonalnie: wyloguj lub przekieruj do logowania
-        localStorage.removeItem("auth_token");
+        localStorage.removeItem("jwt");
       }
     } else if (error.request) {
       // Żądanie zostało wysłane, ale nie otrzymano odpowiedzi
