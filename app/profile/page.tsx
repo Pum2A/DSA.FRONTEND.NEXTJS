@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect, JSX } from "react";
+import { useState, useEffect, JSX, useCallback } from "react"; // Dodano useCallback
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,13 +28,17 @@ import {
   Flame,
   BookOpen,
   Medal,
+  RefreshCw,
+  CheckCircle,
+  X, // Ikona do odświeżania
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import AchievementsSection from "../components/ui/AchievementsSection";
+import AchievementsSection from "../components/ui/AchievementsSection"; // Upewnij się co do ścieżki
+import { Progress } from "@/components/ui/progress"; // Dodano Progress
 
-// Typ dla statystyk użytkownika
+// Typy i Enumy (bez zmian)
 interface UserStats {
   totalXp: number;
   level: number;
@@ -45,8 +49,6 @@ interface UserStats {
   streakDays: number;
   joinedAt?: string;
 }
-
-// Typ dla aktywności użytkownika
 type UserActivity = {
   id: number | string;
   userId: string;
@@ -55,16 +57,11 @@ type UserActivity = {
   referenceId?: string;
   additionalInfo?: string;
 };
-
-// Enum for action types (must match backend)
 enum UserActionType {
   LessonCompleted = 0,
   QuizCompleted = 1,
   Login = 2,
-  // Dodaj inne typy jeśli masz
 }
-
-// Mapowanie numerów enum na ikonę i label
 const actionTypeMap: Record<number, { icon: JSX.Element; label: string }> = {
   [UserActionType.LessonCompleted]: {
     icon: <BookOpen className="h-5 w-5 text-green-600" />,
@@ -79,9 +76,7 @@ const actionTypeMap: Record<number, { icon: JSX.Element; label: string }> = {
     label: "Logowanie",
   },
 };
-
 function toDateStringUTC(date: Date) {
-  // Zwraca "YYYY-MM-DD" w UTC
   return (
     date.getUTCFullYear() +
     "-" +
@@ -91,27 +86,32 @@ function toDateStringUTC(date: Date) {
   );
 }
 
+// GŁÓWNY KOMPONENT PROFILU
 export default function ProfilePage() {
-  const { isAuthenticated, user, isLoading, updateUser } = useAuthStore();
+  const {
+    isAuthenticated,
+    user,
+    isLoading: authLoading,
+    updateUser,
+  } = useAuthStore(); // Zmieniono isLoading na authLoading
   const router = useRouter();
 
-  // Stan dla trybu edycji
+  // Stany
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
   });
-
-  // Stany dla danych statystycznych i ładowania
   const [stats, setStats] = useState<UserStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false); // Dodano stan odświeżania
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
-  // Inicjały użytkownika do avatara
-  const getInitials = () => {
+  // Inicjały
+  const getInitials = useCallback(() => {
     if (user) {
       return (
         `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` ||
@@ -120,16 +120,93 @@ export default function ProfilePage() {
       );
     }
     return "?";
-  };
+  }, [user]);
 
   // Sprawdź autentykację
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push("/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, authLoading, router]);
 
-  // Pobierz dane użytkownika i statystyki
+  // Funkcja do pobierania danych profilu (statystyki, aktywność)
+  const fetchProfileData = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+
+    setIsRefreshing(true); // Ustaw stan odświeżania
+    setError(null);
+
+    try {
+      const [statsResponse, streakResponse, historyResponse] =
+        await Promise.all([
+          apiService.user.getStats(),
+          apiService.user.getStreak(),
+          apiService.user.getActivityHistory
+            ? apiService.user.getActivityHistory()
+            : Promise.resolve([]),
+        ]);
+
+      const statsData = statsResponse as UserStats;
+      setStats({
+        ...statsData,
+        streakDays:
+          (streakResponse &&
+          typeof streakResponse === "object" &&
+          "streak" in streakResponse
+            ? (streakResponse as { streak: number }).streak
+            : statsData.streakDays) || 0,
+      });
+
+      // Ostatnia aktywność
+      if (Array.isArray(historyResponse)) {
+        setRecentActivity(
+          historyResponse.slice(0, 10).map((a: UserActivity, idx: number) => {
+            const map = actionTypeMap[a.actionType] || {
+              icon: <Clock className="h-5 w-5 text-gray-400" />,
+              label: `Aktywność`,
+            };
+            let description = "";
+            if (a.actionType === UserActionType.LessonCompleted)
+              description = `Ukończono lekcję: ${a.referenceId || "?"}`;
+            else if (a.actionType === UserActionType.QuizCompleted)
+              description = `Ukończono quiz: ${a.referenceId || "?"}`;
+            else if (a.actionType === UserActionType.Login)
+              description = "Logowanie do systemu";
+            else description = a.additionalInfo || "";
+            return {
+              id: a.id ?? idx,
+              type: a.actionType,
+              title: map.label,
+              description,
+              date: new Date(a.actionTime).toLocaleDateString(),
+              icon: map.icon,
+            };
+          })
+        );
+      } else {
+        setRecentActivity([]);
+      }
+    } catch (error) {
+      console.error("Error fetching user stats:", error);
+      setError("Nie udało się pobrać statystyk użytkownika");
+      // Ustaw fallback stats jeśli jest błąd
+      setStats({
+        totalXp: user.experiencePoints || 0,
+        level: user.level || 1,
+        requiredXpForNextLevel: (user.level || 1) * 100,
+        currentLevelMinXp: ((user.level || 1) - 1) * 100,
+        completedLessonsCount: 0,
+        totalLessonsCount: 0,
+        streakDays: 0,
+        joinedAt: user.joinedAt,
+      });
+    } finally {
+      setIsLoadingStats(false); // Zakończ główny stan ładowania statystyk
+      setIsRefreshing(false); // Zakończ stan odświeżania
+    }
+  }, [isAuthenticated, user]); // Zależności
+
+  // Efekt do inicjalizacji danych i pobrania statystyk
   useEffect(() => {
     if (isAuthenticated && user) {
       setFormData({
@@ -137,128 +214,49 @@ export default function ProfilePage() {
         lastName: user.lastName || "",
         email: user.email || "",
       });
-
-      const fetchUserStats = async () => {
-        try {
-          setIsLoadingStats(true);
-
-          const [statsResponse, streakResponse, historyResponse] =
-            await Promise.all([
-              apiService.user.getStats(),
-              apiService.user.getStreak(),
-              apiService.user.getActivityHistory
-                ? apiService.user.getActivityHistory()
-                : Promise.resolve([]),
-            ]);
-
-          const statsData = statsResponse as UserStats;
-          setStats({
-            ...statsData,
-            streakDays:
-              (streakResponse &&
-              typeof streakResponse === "object" &&
-              "streak" in streakResponse
-                ? (streakResponse as { streak: number }).streak
-                : statsData.streakDays) || 0,
-          });
-
-          // Recent activity (ostatnie 10)
-          if (Array.isArray(historyResponse)) {
-            setRecentActivity(
-              historyResponse
-                .slice(0, 10)
-                .map((a: UserActivity, idx: number) => {
-                  const map = actionTypeMap[a.actionType] || {
-                    icon: <Clock className="h-5 w-5 text-gray-400" />,
-                    label: `Aktywność`,
-                  };
-
-                  let description = "";
-                  if (a.actionType === UserActionType.LessonCompleted) {
-                    description = `Ukończono lekcję: ${a.referenceId || "?"}`;
-                  } else if (a.actionType === UserActionType.QuizCompleted) {
-                    description = `Ukończono quiz: ${a.referenceId || "?"}`;
-                  } else if (a.actionType === UserActionType.Login) {
-                    description = "Logowanie do systemu";
-                  } else {
-                    description = a.additionalInfo || "";
-                  }
-
-                  return {
-                    id: a.id ?? idx,
-                    type: a.actionType,
-                    title: map.label,
-                    description,
-                    date: new Date(a.actionTime).toLocaleDateString(),
-                    icon: map.icon,
-                  };
-                })
-            );
-          } else {
-            setRecentActivity([]);
-          }
-        } catch (error) {
-          console.error("Error fetching user stats:", error);
-          setError("Nie udało się pobrać statystyk użytkownika");
-
-          setStats({
-            totalXp: user.experiencePoints || 0,
-            level: user.level || 1,
-            requiredXpForNextLevel: (user.level || 1) * 100,
-            currentLevelMinXp: ((user.level || 1) - 1) * 100,
-            completedLessonsCount: 0,
-            totalLessonsCount: 0,
-            streakDays: 0,
-            joinedAt: user.joinedAt,
-          });
-        } finally {
-          setIsLoadingStats(false);
-        }
-      };
-
-      fetchUserStats();
+      fetchProfileData(); // Pobierz dane przy ładowaniu
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, fetchProfileData]); // Dodano fetchProfileData do zależności
 
-  // Obliczanie procentu XP do następnego poziomu
-  const calculateXpProgress = () => {
+  // NOWY EFEKT: Nasłuchiwanie na zdarzenie 'taskCompleted'
+  useEffect(() => {
+    const handleTaskCompleted = () => {
+      console.log(
+        "Profile: Zdarzenie taskCompleted odebrane! Odświeżam dane..."
+      );
+      fetchProfileData(); // Wywołaj funkcję pobierającą dane
+    };
+    window.addEventListener("taskCompleted", handleTaskCompleted);
+    return () =>
+      window.removeEventListener("taskCompleted", handleTaskCompleted);
+  }, [fetchProfileData]); // Zależność od funkcji fetch
+
+  // Obliczenia XP (bez zmian)
+  const calculateXpProgress = useCallback(() => {
     if (!stats) return 0;
-
     const currentXp = stats.totalXp - stats.currentLevelMinXp;
     const requiredXp = stats.requiredXpForNextLevel - stats.currentLevelMinXp;
-
     if (requiredXp <= 0) return 100;
-    const progress = Math.min(100, Math.round((currentXp / requiredXp) * 100));
-    return progress;
-  };
-
+    return Math.min(100, Math.round((currentXp / requiredXp) * 100));
+  }, [stats]);
   const xpProgress = calculateXpProgress();
   const xpToNext = stats
     ? Math.max(0, stats.requiredXpForNextLevel - stats.totalXp)
     : 0;
 
+  // Handlery (bez zmian)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    // Tu powinna być logika API do zapisu, obecna jest tylko symulacja i update Zustand
     try {
-      // Symulacja zapisu danych
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Aktualizacja danych użytkownika
+      // await apiService.user.updateProfile(formData); // PRZYKŁAD wywołania API
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Symulacja
       if (user) {
-        updateUser({
-          ...user,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-        });
+        updateUser({ ...user, ...formData });
       }
-
       setIsEditing(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -268,54 +266,78 @@ export default function ProfilePage() {
     }
   };
 
-  if (isLoading) {
+  // Stany ładowania (bez zmian)
+  if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="flex flex-col items-center">
-          <div className="w-14 h-14 border-t-4 border-b-4 border-blue-600 border-solid rounded-full animate-spin"></div>
-          <p className="mt-4 text-gray-600 font-medium">Ładowanie profilu...</p>
+          <RefreshCw className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="mt-3 text-gray-600 dark:text-gray-400 font-medium">
+            Ładowanie profilu...
+          </p>
         </div>
       </div>
     );
   }
-
   if (!isAuthenticated || !user) {
     return null;
   }
 
+  // === RENDEROWANIE ===
   return (
-    <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
+    <div className="py-6 md:py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      {/* Nagłówek - poprawiona responsywność */}
       <div className="mb-8 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Profil użytkownika</h1>
-            <p className="mt-2 text-blue-100">
-              Zarządzaj swoimi danymi i śledź postępy na platformie.
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              Profil użytkownika
+            </h1>
+            <p className="mt-1 sm:mt-2 text-blue-100 text-sm sm:text-base">
+              Zarządzaj swoimi danymi i śledź postępy.
             </p>
           </div>
-          <Button
-            className={`mt-4 sm:mt-0 ${
-              isEditing
-                ? "bg-white/80 text-blue-700 hover:bg-white"
-                : "bg-white text-blue-700 hover:bg-blue-50"
-            }`}
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Anuluj edycję
-              </>
-            ) : (
-              <>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edytuj profil
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2 flex-shrink-0">
+            {/* Przycisk odświeżania danych */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchProfileData}
+              disabled={isRefreshing}
+              aria-label="Odśwież dane profilu"
+              className="bg-white/20 text-white hover:bg-white/30 border-white/30"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
+            {/* Przycisk edycji */}
+            <Button
+              className={` ${
+                isEditing
+                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  : "bg-white text-blue-700 hover:bg-blue-50"
+              }`}
+              onClick={() => setIsEditing(!isEditing)}
+              size="sm"
+            >
+              {isEditing ? (
+                <X className="h-4 w-4 mr-1 sm:mr-2" />
+              ) : (
+                <Edit2 className="h-4 w-4 mr-1 sm:mr-2" />
+              )}
+              <span className="hidden sm:inline">
+                {isEditing ? "Anuluj edycję" : "Edytuj profil"}
+              </span>
+              <span className="sm:hidden">
+                {isEditing ? "Anuluj" : "Edytuj"}
+              </span>
+            </Button>
+          </div>
         </div>
       </div>
 
+      {/* Alerty */}
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -323,363 +345,423 @@ export default function ProfilePage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
       {saveSuccess && (
-        <Alert className="mb-6 bg-green-50 border-green-200">
-          <AlertCircle className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">Sukces</AlertTitle>
-          <AlertDescription className="text-green-700">
-            Profil został pomyślnie zaktualizowany
+        <Alert className="mb-6 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800">
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertTitle className="text-green-800 dark:text-green-200">
+            Sukces
+          </AlertTitle>
+          <AlertDescription className="text-green-700 dark:text-green-300">
+            Profil został pomyślnie zaktualizowany.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* User Card */}
-      <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 mb-8 border border-gray-100">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold text-white flex-shrink-0 mx-auto sm:mx-0 shadow-md">
+      {/* Karta użytkownika - poprawiona responsywność */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 mb-8 border dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-white flex-shrink-0 mx-auto sm:mx-0 shadow-md">
             {getInitials()}
           </div>
-          <div className="text-center sm:text-left">
-            <h2 className="text-2xl font-bold mb-1 text-gray-800">
-              {user.firstName} {user.lastName}
+          <div className="text-center sm:text-left flex-grow">
+            <h2 className="text-xl sm:text-2xl font-bold mb-0.5 text-gray-800 dark:text-gray-100">
+              {user.firstName || user.lastName
+                ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                : user.userName}
             </h2>
-            <p className="text-gray-600 flex items-center justify-center sm:justify-start gap-1">
+            <p className="text-gray-600 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1 text-sm sm:text-base">
               <UserRound size={16} />
               <span>@{user.userName}</span>
             </p>
-            <div className="mt-3 flex flex-wrap gap-2 justify-center sm:justify-start">
+            <div className="mt-2 flex flex-wrap gap-2 justify-center sm:justify-start">
               {user.roles?.map((role) => (
                 <span
                   key={role}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium shadow-sm"
+                  className="px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs font-medium shadow-sm"
                 >
                   {role}
                 </span>
               ))}
               {(!user.roles || user.roles.length === 0) && (
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                <span className="px-2.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium">
                   Użytkownik
                 </span>
               )}
             </div>
           </div>
-          <div className="ml-auto hidden sm:block">
-            <div className="flex flex-col items-center">
-              <div className="text-sm text-gray-500">Dołączył(a)</div>
-              <div className="font-medium">
+          <div className="text-center sm:text-right mt-4 sm:mt-0 flex-shrink-0">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+              Dołączył(a)
+            </div>
+            {isLoadingStats || isRefreshing ? (
+              <Skeleton className="h-5 w-28" />
+            ) : (
+              <div className="font-medium text-gray-700 dark:text-gray-300">
                 {stats?.joinedAt
-                  ? new Intl.DateTimeFormat("en-US", {
+                  ? new Date(stats.joinedAt).toLocaleDateString("pl-PL", {
                       year: "numeric",
                       month: "long",
                       day: "numeric",
-                    }).format(new Date(stats.joinedAt))
+                    })
                   : "N/A"}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Nowy układ treści z zakładkami */}
+      {/* Główna siatka treści - responsywna */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Lewa kolumna - statystyki i aktywność */}
+        {/* Lewa kolumna - statystyki i aktywność (zajmuje całą szerokość na mniejszych ekranach) */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Stats Overview - z poprawionym XP */}
-          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
-              <Activity size={20} className="text-blue-500" />
+          {/* Podsumowanie statystyk */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border dark:border-gray-700 hover:shadow-lg transition-shadow">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
+              <Activity
+                size={20}
+                className="text-blue-500 dark:text-blue-400"
+              />{" "}
               Statystyki
             </h2>
-            <div className="space-y-6">
-              {/* Poziom i XP z wizualnym progress barem */}
-              <div className="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
+            <div className="space-y-5">
+              {/* Poziom i XP */}
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl shadow-sm border border-blue-100 dark:border-blue-900">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-gray-700 font-medium flex items-center">
-                    <Shield className="h-5 w-5 text-blue-600 mr-2" />
+                  <div className="text-gray-700 dark:text-gray-300 font-medium flex items-center text-sm">
+                    <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400 mr-1.5" />
                     Poziom{" "}
-                    {isLoadingStats ? "..." : stats?.level || user.level || 1}
+                    {isLoadingStats || isRefreshing ? (
+                      <Skeleton className="h-4 w-5 inline-block ml-1" />
+                    ) : (
+                      stats?.level ?? user.level ?? 1
+                    )}
                   </div>
-                  <div className="text-sm text-blue-700 font-medium">
-                    {isLoadingStats
-                      ? "..."
-                      : stats?.totalXp || user.experiencePoints || 0}{" "}
-                    XP
+                  <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                    {isLoadingStats || isRefreshing ? (
+                      <Skeleton className="h-4 w-12" />
+                    ) : (
+                      `${stats?.totalXp ?? user.experiencePoints ?? 0} XP`
+                    )}
                   </div>
                 </div>
-
-                {isLoadingStats ? (
-                  <Skeleton className="h-2 w-full rounded-full mb-2" />
+                {isLoadingStats || isRefreshing ? (
+                  <Skeleton className="h-2 w-full rounded-full mb-1" />
                 ) : (
                   <>
-                    <div className="w-full bg-blue-200 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-blue-600 h-full rounded-full"
-                        style={{ width: `${xpProgress}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-1.5 text-xs text-gray-500">
-                      <span>{stats?.currentLevelMinXp || 0} XP</span>
-                      <span>
-                        {xpToNext} XP do poziomu {(stats?.level || 1) + 1}
-                      </span>
+                    <Progress
+                      value={xpProgress}
+                      className="h-2"
+                      aria-label={`Postęp do następnego poziomu: ${xpProgress}%`}
+                    />
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {xpToNext} XP do poziomu {(stats?.level ?? 1) + 1}
                     </div>
                   </>
                 )}
               </div>
-
-              {/* Pozostałe statystyki */}
+              {/* Pozostałe staty - responsywny grid */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 p-4 rounded-xl shadow-sm border border-green-100 flex flex-col items-center">
-                  <BookOpen className="h-6 w-6 text-green-600 mb-1" />
-                  <div className="text-xl font-bold text-green-700">
-                    {isLoadingStats ? "..." : stats?.completedLessonsCount || 0}
-                  </div>
-                  <div className="text-xs text-gray-500 text-center">
+                <div className="bg-green-50 dark:bg-green-900/30 p-3 sm:p-4 rounded-xl shadow-sm border border-green-100 dark:border-green-900 flex flex-col items-center text-center">
+                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 dark:text-green-400 mb-1" />
+                  {isLoadingStats || isRefreshing ? (
+                    <Skeleton className="h-6 w-10 mb-0.5" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-green-700 dark:text-green-300">
+                      {stats?.completedLessonsCount ?? 0}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Ukończone lekcje
                   </div>
                 </div>
-
-                <div className="bg-orange-50 p-4 rounded-xl shadow-sm border border-orange-100 flex flex-col items-center">
-                  <Flame className="h-6 w-6 text-orange-600 mb-1" />
-                  <div className="text-xl font-bold text-orange-700">
-                    {isLoadingStats ? "..." : stats?.streakDays || 0}
-                  </div>
-                  <div className="text-xs text-gray-500 text-center">
+                <div className="bg-orange-50 dark:bg-orange-900/30 p-3 sm:p-4 rounded-xl shadow-sm border border-orange-100 dark:border-orange-900 flex flex-col items-center text-center">
+                  <Flame className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600 dark:text-orange-400 mb-1" />
+                  {isLoadingStats || isRefreshing ? (
+                    <Skeleton className="h-6 w-8 mb-0.5" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-orange-700 dark:text-orange-300">
+                      {stats?.streakDays ?? 0}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Dni z rzędu
                   </div>
                 </div>
               </div>
-
-              {/* Achievements Section */}
-              <div className="bg-yellow-50 p-4 rounded-xl shadow-sm border border-yellow-100">
-                <AchievementsSection />
-              </div>
-
-              {/* Role */}
-              <div className="bg-purple-50 p-4 rounded-xl shadow-sm border border-purple-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <Github size={18} className="text-purple-600" />
-                  <div className="text-sm font-medium text-gray-700">Role</div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {user.roles?.map((role) => (
-                    <span
-                      key={role}
-                      className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium shadow-sm"
-                    >
-                      {role}
-                    </span>
-                  ))}
-                  {(!user.roles || user.roles.length === 0) && (
-                    <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                      Użytkownik
-                    </span>
-                  )}
-                </div>
+              {/* Osiągnięcia */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-xl shadow-sm border border-yellow-100 dark:border-yellow-900">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                  <Award
+                    size={16}
+                    className="text-yellow-600 dark:text-yellow-400"
+                  />{" "}
+                  Osiągnięcia
+                </h3>
+                <AchievementsSection />{" "}
+                {/* Zakładamy, że ten komponent istnieje i jest responsywny */}
               </div>
             </div>
           </div>
 
-          {/* Activity Section */}
-          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-              <CalendarDays size={20} className="text-blue-500" />
+          {/* Ostatnia aktywność - używa tej samej logiki co Dashboard */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border dark:border-gray-700 hover:shadow-lg transition-shadow">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2">
+              <CalendarDays
+                size={20}
+                className="text-blue-500 dark:text-blue-400"
+              />{" "}
               Ostatnia aktywność
             </h2>
-            <div className="rounded-xl overflow-hidden border border-gray-200 divide-y">
-              {recentActivity.length === 0 && (
-                <div className="p-4 text-gray-400 text-center">
-                  Brak aktywności.
-                </div>
+            <div className="space-y-6 max-h-96 overflow-y-auto pr-2">
+              {" "}
+              {/* Dodano scroll */}
+              {(isLoadingStats || isRefreshing) && !recentActivity.length && (
+                <>
+                  <div className="flex gap-4 animate-pulse">
+                    <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                    <div className="space-y-2 flex-grow">
+                      <Skeleton className="h-5 w-3/5" />
+                      <Skeleton className="h-4 w-4/5" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex gap-4 animate-pulse">
+                    <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                    <div className="space-y-2 flex-grow">
+                      <Skeleton className="h-5 w-2/5" />
+                      <Skeleton className="h-4 w-3/5" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </>
               )}
-              {recentActivity.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
-                      {activity.icon}
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-800">
-                        {activity.title}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {activity.description}
-                      </p>
-                    </div>
+              {!isLoadingStats &&
+                !isRefreshing &&
+                recentActivity.length > 0 && (
+                  <div className="flow-root">
+                    <ul className="-mb-8">
+                      {recentActivity.map((activity, activityIdx) => (
+                        <li key={activity.id}>
+                          <div className="relative pb-8">
+                            {activityIdx !== recentActivity.length - 1 ? (
+                              <span
+                                className="absolute left-5 top-5 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            <div className="relative flex items-start space-x-3">
+                              <div className="relative">
+                                <span className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center ring-4 ring-white dark:ring-gray-900">
+                                  {activity.icon || (
+                                    <Clock className="h-5 w-5 text-gray-400" />
+                                  )}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1 py-1.5">
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  <span className="font-medium text-gray-900 dark:text-gray-100 mr-2">
+                                    {activity.title}
+                                  </span>
+                                  <span className="whitespace-nowrap float-right">
+                                    {activity.date}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                                  {activity.description}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="text-sm text-gray-400 flex items-center gap-1">
-                    <span>{activity.date}</span>
-                    <ChevronRight size={16} />
+                )}
+              {!isLoadingStats &&
+                !isRefreshing &&
+                recentActivity.length === 0 && (
+                  <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                    Brak ostatnich aktywności.
                   </div>
-                </div>
-              ))}
+                )}
             </div>
           </div>
         </div>
 
-        {/* Prawa kolumna - informacje osobowe i ustawienia w zakładkach */}
+        {/* Prawa kolumna - zakładki z informacjami i ustawieniami */}
         <div className="lg:col-span-2">
-          <Tabs defaultValue="personal">
-            <TabsList className="grid grid-cols-2 mb-6">
-              <TabsTrigger value="personal">
-                <UserRound className="h-4 w-4 mr-2" />
-                Informacje osobowe
+          <Tabs
+            defaultValue="personal"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md border dark:border-gray-700 overflow-hidden"
+          >
+            {/* TabsList z lepszą responsywnością */}
+            <TabsList className="grid grid-cols-2 w-full rounded-t-xl rounded-b-none h-auto">
+              <TabsTrigger
+                value="personal"
+                className="py-3 data-[state=active]:shadow-none data-[state=active]:bg-gray-100 dark:data-[state=active]:bg-gray-700 rounded-tl-lg rounded-tr-none rounded-b-none"
+              >
+                <UserRound className="h-4 w-4 mr-2 hidden sm:inline-block" />{" "}
+                Informacje
               </TabsTrigger>
-              <TabsTrigger value="settings">
-                <UserCog className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="settings"
+                className="py-3 data-[state=active]:shadow-none data-[state=active]:bg-gray-100 dark:data-[state=active]:bg-gray-700 rounded-tr-lg rounded-tl-none rounded-b-none"
+              >
+                <UserCog className="h-4 w-4 mr-2 hidden sm:inline-block" />{" "}
                 Ustawienia
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="personal">
-              {/* Personal Information */}
+            {/* Zakładka: Informacje osobowe */}
+            <TabsContent value="personal" className="p-6">
               <form onSubmit={handleSubmit}>
-                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-                    <User size={20} className="text-blue-500" />
-                    Dane osobowe
-                  </h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">Imię</Label>
-                      <Input
-                        id="firstName"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        className={
-                          isEditing ? "" : "bg-gray-50 border-gray-200"
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Nazwisko</Label>
-                      <Input
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        className={
-                          isEditing ? "" : "bg-gray-50 border-gray-200"
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <div className="flex items-center">
-                        <Mail className="h-5 w-5 text-gray-400 mr-2" />
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                          className={
-                            isEditing ? "" : "bg-gray-50 border-gray-200"
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Nazwa użytkownika</Label>
-                      <Input
-                        id="username"
-                        value={user.userName || ""}
-                        disabled
-                        className="bg-gray-50 border-gray-200"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Nazwa użytkownika nie może zostać zmieniona
-                      </p>
-                    </div>
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                  <User
+                    size={20}
+                    className="text-blue-500 dark:text-blue-400"
+                  />{" "}
+                  Dane osobowe
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mt-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="firstName">Imię</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      disabled={!isEditing}
+                      className={
+                        isEditing
+                          ? ""
+                          : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+                      }
+                    />
                   </div>
-
-                  {isEditing && (
-                    <div className="mt-6 flex justify-end">
-                      <Button
-                        type="submit"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        Zapisz zmiany
-                      </Button>
-                    </div>
-                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lastName">Nazwisko</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      disabled={!isEditing}
+                      className={
+                        isEditing
+                          ? ""
+                          : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      disabled={!isEditing}
+                      className={
+                        isEditing
+                          ? ""
+                          : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="username">Nazwa użytkownika</Label>
+                    <Input
+                      id="username"
+                      value={user.userName || ""}
+                      disabled
+                      className="bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Nazwa użytkownika nie może zostać zmieniona.
+                    </p>
+                  </div>
                 </div>
+                {isEditing && (
+                  <div className="mt-6 flex justify-end border-t dark:border-gray-700 pt-4">
+                    <Button
+                      type="submit"
+                      className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                      <Save className="h-4 w-4 mr-2" /> Zapisz zmiany
+                    </Button>
+                  </div>
+                )}
               </form>
             </TabsContent>
 
-            <TabsContent value="settings">
-              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 border-b pb-2">
-                  <UserCog size={20} className="text-blue-500" />
-                  Ustawienia konta
-                </h2>
-
-                <div className="space-y-8 mt-6">
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Bezpieczeństwo</h3>
-                    <div className="bg-white border rounded-lg p-4">
-                      <p className="text-gray-700 mb-4">
-                        Zalecamy regularne zmienianie hasła dla zwiększenia
-                        bezpieczeństwa konta.
-                      </p>
-                      <Button variant="outline">Zmień hasło</Button>
-                    </div>
+            {/* Zakładka: Ustawienia */}
+            <TabsContent value="settings" className="p-6">
+              <h2 className="text-lg sm:text-xl font-semibold mb-6 flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                <UserCog
+                  size={20}
+                  className="text-blue-500 dark:text-blue-400"
+                />{" "}
+                Ustawienia konta
+              </h2>
+              <div className="space-y-8">
+                {/* Bezpieczeństwo */}
+                <div>
+                  <h3 className="text-base font-medium mb-2 text-gray-700 dark:text-gray-300">
+                    Bezpieczeństwo
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 border dark:border-gray-700 rounded-lg p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      Zalecamy regularne zmienianie hasła dla zwiększenia
+                      bezpieczeństwa konta.
+                    </p>
+                    <Button variant="outline" size="sm" disabled>
+                      Zmień hasło (niedostępne)
+                    </Button>
                   </div>
-
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Powiadomienia</h3>
-                    <div className="bg-gray-50 border rounded-lg p-6 text-center">
-                      <p className="text-gray-500">
-                        Ustawienia powiadomień będą dostępne wkrótce.
-                      </p>
-                    </div>
+                </div>
+                {/* Powiadomienia */}
+                <div>
+                  <h3 className="text-base font-medium mb-2 text-gray-700 dark:text-gray-300">
+                    Powiadomienia
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 border dark:border-gray-700 rounded-lg p-6 text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Ustawienia powiadomień będą dostępne wkrótce.
+                    </p>
                   </div>
-
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Prywatność</h3>
-                    <div className="bg-white border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <div className="font-medium">Widoczność profilu</div>
-                          <div className="text-sm text-gray-500">
-                            Kto może widzieć Twój profil
-                          </div>
+                </div>
+                {/* Prywatność */}
+                <div>
+                  <h3 className="text-base font-medium mb-2 text-gray-700 dark:text-gray-300">
+                    Prywatność
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 border dark:border-gray-700 rounded-lg p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                          Widoczność profilu
                         </div>
-                        <div>
-                          <Button variant="outline" size="sm">
-                            Tylko ja
-                          </Button>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Kto może widzieć Twój publiczny profil
                         </div>
                       </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Udostępnianie statystyk
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Pokaż swoje postępy w nauce innym
-                          </div>
+                      <Button variant="outline" size="sm" disabled>
+                        Tylko ja (niedostępne)
+                      </Button>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                          Udostępnianie statystyk
                         </div>
-                        <div>
-                          <Button variant="outline" size="sm">
-                            Włączone
-                          </Button>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Pokaż postępy w rankingach (jeśli dotyczy)
                         </div>
                       </div>
+                      <Button variant="outline" size="sm" disabled>
+                        Włączone (niedostępne)
+                      </Button>
                     </div>
                   </div>
                 </div>
