@@ -154,7 +154,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // Zakładając endpoint PUT /api/Auth/profile lub podobny
       const updatedUserFromApi = await apiService.put<User>(
-        "auth/profile",
+        "Auth/user",
         updatedFields
       );
       set({ user: updatedUserFromApi, isLoading: false });

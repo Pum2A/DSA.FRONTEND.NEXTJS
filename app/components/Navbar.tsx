@@ -37,9 +37,9 @@ export function Navbar() {
 
   // Pobieranie danych użytkownika z SWR
   const { data: updatedUser, mutate: refreshUser } = useSWR(
-    isAuthenticated ? "/auth/user" : null,
+    isAuthenticated ? "/Auth/user" : null,
     async () => {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch("/api/Auth/user");
       if (!response.ok) throw new Error("Failed to fetch user data");
       return response.json();
     },

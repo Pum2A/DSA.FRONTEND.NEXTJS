@@ -70,7 +70,7 @@ export default function RankingPage() {
   // Nadal potrzebujemy pełnego URL i poprawnej wielkości liter
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
   const swrKey = API_BASE_URL
-    ? `${API_BASE_URL}/api/User/ranking/${category}?page=${page}&limit=${limit}` // Poprawna wielkość liter 'User'
+    ? `${API_BASE_URL}/User/ranking/${category}?page=${page}&limit=${limit}` // Poprawna wielkość liter 'User'
     : null;
 
   const {
