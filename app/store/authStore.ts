@@ -12,7 +12,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const data = (await apiService.post("api/auth/login", {
+      const data = (await apiService.post("/auth/login", {
         email,
         password,
       })) as {
@@ -63,10 +63,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const data = (await apiService.post(
-        "api/auth/register",
-        registerData
-      )) as {
+      const data = (await apiService.post("/auth/register", registerData)) as {
         succeeded: boolean;
         userId: string;
         userName: string;
@@ -110,7 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      await apiService.post("api/auth/logout");
+      await apiService.post("/auth/logout");
     } catch (error) {
       console.error("Error during logout:", error);
     }
@@ -125,7 +122,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
 
     try {
-      const data = (await apiService.get("api/auth/user")) as {
+      const data = (await apiService.get("/auth/user")) as {
         userId: string;
         userName: string;
         email: string;
