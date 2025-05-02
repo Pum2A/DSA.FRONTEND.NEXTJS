@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5178/api";
+const API_URL = "https://dsadotnet-481e228cd0ec.herokuapp.com/api";
 
 // Funkcja pomocnicza do pobierania tokenu
 const getAuthToken = (): string | null => {
