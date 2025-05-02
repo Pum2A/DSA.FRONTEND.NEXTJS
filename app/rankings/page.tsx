@@ -70,7 +70,7 @@ export default function RankingPage() {
   // Zbuduj pełny URL dla SWR
   // Używamy `API_BASE_URL` tylko jeśli jest dostępny (po stronie klienta)
   const swrKey = API_BASE_URL
-    ? `${API_BASE_URL}/api/user/ranking/${category}?page=${page}&limit=${limit}`
+    ? `${API_BASE_URL}/user/ranking/${category}?page=${page}&limit=${limit}`
     : null;
 
   const {
