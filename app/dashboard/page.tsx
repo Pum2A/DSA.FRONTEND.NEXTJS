@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { JSX, useEffect, useState, useCallback } from "react"; // Dodano useCallback
+import { JSX, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,15 +13,17 @@ import {
   Star,
   Flame,
   TrendingUp,
-  Target,
   BookOpen,
   Medal,
   ArrowRight,
-  Activity, // Dodano Activity dla sekcji
-  RefreshCw, // Ikona do odświeżania
+  Activity,
+  RefreshCw,
+  CheckCircle,
+  BarChart3,
+  CalendarClock,
 } from "lucide-react";
 import { useAuthStore } from "@/app/store/authStore";
-import { Module, UserStats, LearningPath } from "@/app/types"; // Upewnij się, że typy są poprawne
+import { Module, UserStats, LearningPath, User } from "@/app/types"; // Dodano User
 import { apiService } from "@/app/lib/api";
 import {
   Card,
@@ -50,15 +52,15 @@ enum UserActionType {
 }
 const actionTypeMap: Record<number, { icon: JSX.Element; label: string }> = {
   [UserActionType.LessonCompleted]: {
-    icon: <BookOpen className="h-5 w-5 text-green-600" />,
+    icon: <BookOpen className="h-5 w-5 text-green-500 dark:text-green-400" />,
     label: "Ukończono lekcję",
   },
   [UserActionType.QuizCompleted]: {
-    icon: <Medal className="h-5 w-5 text-yellow-600" />,
+    icon: <Medal className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />,
     label: "Ukończono quiz",
   },
   [UserActionType.Login]: {
-    icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
+    icon: <TrendingUp className="h-5 w-5 text-blue-500 dark:text-blue-400" />,
     label: "Logowanie",
   },
 };
@@ -74,14 +76,19 @@ function toDateStringUTC(date: Date) {
 
 // GŁÓWNY KOMPONENT DASHBOARD
 export default function DashboardPage() {
-  const { isAuthenticated, user, isLoading: authLoading } = useAuthStore();
+  const {
+    isAuthenticated,
+    user: authUser,
+    isLoading: authLoading,
+  } = useAuthStore(); // Zmieniono user na authUser, aby uniknąć konfliktu
   const router = useRouter();
 
   // Stany
   const [modules, setModules] = useState<Module[]>([]);
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const [displayUser, setDisplayUser] = useState<User | null>(authUser); // Stan dla danych użytkownika z /Auth/user
+  const [stats, setStats] = useState<UserStats | null>(null); // Stan dla danych z /stats
   const [dataLoading, setDataLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false); // Stan dla ręcznego odświeżania
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -91,12 +98,10 @@ export default function DashboardPage() {
 
   // Sprawdź autentykację
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/login");
-    }
+    if (!authLoading && !isAuthenticated) router.push("/login");
   }, [isAuthenticated, authLoading, router]);
 
-  // Funkcja pobierająca postęp dla modułu
+  // Funkcja pobierająca postęp modułu (bez zmian)
   const fetchModuleProgress = useCallback(async (moduleId: string) => {
     try {
       const moduleProgress = await apiService.lessons.getModuleProgress(
@@ -105,41 +110,53 @@ export default function DashboardPage() {
       return moduleProgress as {
         completedLessons: number;
         totalLessons: number;
-      }; // Dodano asercję typu
+      };
     } catch (error) {
       console.error(`Error fetching progress for module ${moduleId}:`, error);
       return { completedLessons: 0, totalLessons: 0 };
     }
-  }, []); // Pusta tablica zależności, bo apiService jest stałe
+  }, []);
 
-  // Funkcja do pobierania i przetwarzania danych Dashboardu
+  // === NOWA FUNKCJA POBIERANIA DANYCH ===
   const fetchDashboardData = useCallback(async () => {
-    if (!isAuthenticated || !user) return; // Sprawdź czy user istnieje
+    if (!isAuthenticated || !authUser) return; // Używamy authUser ze store do warunku
 
-    setIsRefreshing(true); // Pokaż stan ładowania/odświeżania
-    setError(null); // Resetuj błąd
+    setIsRefreshing(true);
+    setError(null);
 
     try {
-      const [modulesResponse, statsResponse, streakResponse, historyResponse] =
-        await Promise.all([
-          apiService.lessons.getAllModules(),
-          apiService.user.getStats(),
-          apiService.user.getStreak(),
-          apiService.user.getActivityHistory
-            ? apiService.user.getActivityHistory()
-            : Promise.resolve([]),
-        ]);
+      // Pobieramy WSZYSTKIE potrzebne dane równolegle
+      const [
+        userDataResponse, // NOWE: Pobieramy dane z /Auth/user
+        modulesResponse,
+        statsResponse,
+        streakResponse,
+        historyResponse,
+      ] = await Promise.all([
+        apiService.get<User>("Auth/user"), // Endpoint używany przez Navbar
+        apiService.lessons.getAllModules(),
+        apiService.user.getStats(),
+        apiService.user.getStreak(),
+        apiService.user.getActivityHistory
+          ? apiService.user.getActivityHistory()
+          : Promise.resolve([]),
+      ]);
 
+      // 1. Ustawiamy dane użytkownika (źródło prawdy dla poziomu/XP)
+      const fetchedUser = userDataResponse as User;
+      setDisplayUser(fetchedUser); // Ustawiamy aktualne dane użytkownika
+
+      // 2. Ustawiamy statystyki (inne niż poziom/XP)
+      const statsData = statsResponse as UserStats;
+      setStats(statsData); // Ustawiamy statystyki z /stats
+
+      // 3. Przetwarzamy resztę danych jak wcześniej
       const modulesData = modulesResponse as Module[];
       setModules(modulesData);
-
-      const statsData = statsResponse as UserStats;
-      setStats(statsData); // Zaktualizuj statystyki
 
       const streakData = streakResponse as { streak: number };
       setStreak(streakData.streak || 0);
 
-      // Dzienny cel
       let todayDateString = toDateStringUTC(new Date());
       let goalDone = false;
       if (Array.isArray(historyResponse)) {
@@ -151,10 +168,10 @@ export default function DashboardPage() {
       }
       setDailyGoalCompleted(goalDone);
 
-      // Ostatnia aktywność
       if (Array.isArray(historyResponse)) {
         setRecentActivity(
-          historyResponse.slice(0, 10).map((a: UserActivity, idx: number) => {
+          historyResponse.slice(0, 7).map((a: UserActivity, idx: number) => {
+            // Ograniczono do 7
             const map = actionTypeMap[a.actionType] || {
               icon: <Clock className="h-5 w-5 text-gray-400" />,
               label: `Aktywność`,
@@ -172,7 +189,7 @@ export default function DashboardPage() {
               type: a.actionType,
               title: map.label,
               description,
-              date: new Date(a.actionTime).toLocaleDateString(),
+              date: new Date(a.actionTime).toLocaleDateString("pl-PL"),
               icon: map.icon,
             };
           })
@@ -181,7 +198,7 @@ export default function DashboardPage() {
         setRecentActivity([]);
       }
 
-      // Całkowity postęp
+      // Całkowity postęp (używamy danych ze statsData)
       if (statsData) {
         const totalProgress =
           statsData.totalLessonsCount > 0
@@ -197,7 +214,7 @@ export default function DashboardPage() {
         setOverallProgress(totalProgress);
       }
 
-      // Przetwarzanie ścieżek nauki
+      // Przetwarzanie ścieżek nauki (bez zmian w logice, tylko użycie modulesData)
       const sortedModules = [...modulesData].sort((a, b) => a.order - b.order);
       const moduleProgressPromises = sortedModules.map(async (module) => {
         const progress = await fetchModuleProgress(module.externalId);
@@ -223,6 +240,7 @@ export default function DashboardPage() {
       });
       const processedModules = await Promise.all(moduleProgressPromises);
       const sortedPaths = processedModules.sort((a, b) => {
+        /* sortowanie bez zmian */
         if (
           a.progress > 0 &&
           a.progress < 100 &&
@@ -235,52 +253,54 @@ export default function DashboardPage() {
           (a.progress === 0 || a.progress === 100)
         )
           return 1;
-        if (a.progress === 0 && b.progress === 100) return -1;
-        if (b.progress === 0 && a.progress === 100) return 1;
-        return b.progress - a.progress; // Sortowanie od nieukończonych do ukończonych
+        if (a.progress === 0 && b.progress !== 0) return -1; // Nierozpoczęte przed rozpoczętymi/ukończonymi
+        if (b.progress === 0 && a.progress !== 0) return 1;
+        return b.progress - a.progress; // Ukończone na końcu
       });
       setLearningPaths(sortedPaths);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
       setError("Nie udało się pobrać danych. Spróbuj odświeżyć stronę.");
-      // Można zostawić fallback data, jeśli jest potrzebne
     } finally {
-      setDataLoading(false); // Zakończ główny stan ładowania
-      setIsRefreshing(false); // Zakończ stan odświeżania
+      setDataLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isAuthenticated, user, fetchModuleProgress]); // Dodano fetchModuleProgress do zależności
+  }, [isAuthenticated, authUser, fetchModuleProgress]); // Zależność od authUser
 
-  // Efekt do pobrania danych przy pierwszym ładowaniu
+  // Efekty (bez zmian, używają nowej funkcji fetch)
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]); // Zależność od funkcji fetch
-
-  // NOWY EFEKT: Nasłuchiwanie na zdarzenie 'taskCompleted'
+  }, [fetchDashboardData]);
   useEffect(() => {
     const handleTaskCompleted = () => {
-      console.log(
-        "Dashboard: Zdarzenie taskCompleted odebrane! Odświeżam dane..."
-      );
-      fetchDashboardData(); // Wywołaj funkcję pobierającą dane
+      console.log("Dashboard: taskCompleted! Odświeżam...");
+      fetchDashboardData();
     };
     window.addEventListener("taskCompleted", handleTaskCompleted);
     return () =>
       window.removeEventListener("taskCompleted", handleTaskCompleted);
-  }, [fetchDashboardData]); // Zależność od funkcji fetch
+  }, [fetchDashboardData]);
 
   // Stany ładowania i błędy (bez zmian)
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Skeleton className="h-10 w-40" />
+        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated || !authUser) {
     return null;
-  }
+  } // Używamy authUser
 
-  // Przygotowanie danych do wyświetlenia (bez zmian)
+  // === PRZYGOTOWANIE DANYCH DO WYŚWIETLENIA ===
+  // Używamy displayUser jako głównego źródła dla poziomu/XP
+  const currentLevel = displayUser?.level ?? 1;
+  const currentXp = displayUser?.experiencePoints ?? 0;
+  // Pozostałe statystyki bierzemy ze stanu `stats`
+  const completedLessons = stats?.completedLessonsCount ?? 0;
+  const totalLessons = stats?.totalLessonsCount ?? 0;
+
   const loadingPaths: LearningPath[] = Array(3)
     .fill(0)
     .map((_, index) => ({
@@ -290,8 +310,8 @@ export default function DashboardPage() {
       progress: 0,
       completedLessons: 0,
       totalLessons: 0,
-      icon: "",
-      iconColor: "",
+      icon: "⏳",
+      iconColor: "#9CA3AF",
     }));
   const pathsToDisplay = dataLoading ? loadingPaths : learningPaths;
   const inProgressPaths = pathsToDisplay.filter(
@@ -304,23 +324,24 @@ export default function DashboardPage() {
   // === RENDEROWANIE ===
   return (
     <div className="py-6 md:py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Nagłówek z przyciskiem odświeżania */}
-      <div className="mb-6 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Nagłówek */}
+      <div className="mb-6 md:mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-            Witaj, {user.firstName || user.userName}!
+            Witaj, {displayUser?.firstName || displayUser?.userName}!{" "}
+            {/* Używamy displayUser */}
           </h1>
           <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Oto Twój dashboard nauki. Kontynuuj swoją podróż!
+            Twój panel postępów w nauce algorytmów i struktur danych.
           </p>
         </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={fetchDashboardData}
           disabled={isRefreshing}
-          aria-label="Odśwież dane dashboardu"
-          className="flex-shrink-0"
+          aria-label="Odśwież dane"
+          className="flex-shrink-0 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800"
         >
           <RefreshCw
             className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
@@ -329,7 +350,6 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Komunikat o błędzie */}
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -338,535 +358,531 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {/* Sekcja z kartami - poprawiona responsywność */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-        {/* Karta postępów ogólnych - zajmuje więcej miejsca na LG */}
-        <Card className="lg:col-span-8 shadow-sm hover:shadow-md transition-shadow border dark:border-gray-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg sm:text-xl">
-              Twój postęp nauki
-            </CardTitle>
-            <CardDescription>
-              Całkowity postęp we wszystkich modułach
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm">
-                <h3 className="font-medium text-gray-700 dark:text-gray-300">
-                  Całkowity postęp
-                </h3>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">
-                  {overallProgress}%
-                </span>
+      {/* Główna siatka */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 lg:mb-10">
+        {/* Lewa kolumna (większa) */}
+        <div className="lg:col-span-2 space-y-6 lg:space-y-8">
+          {/* Karta postępów ogólnych */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <BarChart3 className="text-indigo-500" /> Postęp nauki
+              </CardTitle>
+              <CardDescription>
+                Całkowity postęp i kluczowe wskaźniki
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Całkowity postęp */}
+              <div>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <h3 className="font-medium text-gray-700 dark:text-gray-300">
+                    Całkowity postęp
+                  </h3>
+                  <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                    {overallProgress}%
+                  </span>
+                </div>
+                <Progress
+                  value={overallProgress}
+                  className="h-2 bg-gray-200 dark:bg-gray-700 [&>div]:bg-gradient-to-r [&>div]:from-indigo-500 [&>div]:to-blue-500"
+                  aria-label={`Całkowity postęp: ${overallProgress}%`}
+                />
               </div>
-              <Progress
-                value={overallProgress}
-                className="h-2"
-                aria-label={`Całkowity postęp: ${overallProgress}%`}
-              />
-
-              {/* Statystyki szczegółowe - responsywne */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+              {/* Statystyki szczegółowe */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Poziom */}
-                <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg flex items-center gap-3 border border-blue-100 dark:border-blue-900">
-                  <div className="bg-blue-100 dark:bg-blue-800/50 p-2 sm:p-3 rounded-full">
-                    <Star className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl flex items-center gap-3 border border-blue-100 dark:border-blue-900 transition-transform hover:scale-[1.02]">
+                  <div className="bg-gradient-to-br from-blue-400 to-indigo-500 p-2 rounded-lg shadow-inner text-white">
+                    <Star className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Poziom
                     </div>
                     {dataLoading || isRefreshing ? (
-                      <Skeleton className="h-6 w-10 mt-1" />
+                      <Skeleton className="h-6 w-10 mt-0.5" />
                     ) : (
-                      <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {stats?.level ?? user.level ?? 1}
+                      <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                        {currentLevel}
                       </div>
                     )}
                   </div>
                 </div>
                 {/* Doświadczenie */}
-                <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg flex items-center gap-3 border border-green-100 dark:border-green-900">
-                  <div className="bg-green-100 dark:bg-green-800/50 p-2 sm:p-3 rounded-full">
-                    <Lightbulb className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-4 rounded-xl flex items-center gap-3 border border-green-100 dark:border-green-900 transition-transform hover:scale-[1.02]">
+                  <div className="bg-gradient-to-br from-green-400 to-emerald-500 p-2 rounded-lg shadow-inner text-white">
+                    <Lightbulb className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Doświadczenie
+                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      XP
                     </div>
                     {dataLoading || isRefreshing ? (
-                      <Skeleton className="h-6 w-16 mt-1" />
+                      <Skeleton className="h-6 w-16 mt-0.5" />
                     ) : (
-                      <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
-                        {stats?.totalXp ?? user.experiencePoints ?? 0} XP
+                      <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                        {currentXp}
                       </div>
                     )}
                   </div>
                 </div>
                 {/* Ukończone lekcje */}
-                <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg flex items-center gap-3 border border-yellow-100 dark:border-yellow-900">
-                  <div className="bg-yellow-100 dark:bg-yellow-800/50 p-2 sm:p-3 rounded-full">
-                    <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/30 dark:to-amber-900/30 p-4 rounded-xl flex items-center gap-3 border border-yellow-100 dark:border-yellow-900 transition-transform hover:scale-[1.02]">
+                  <div className="bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-lg shadow-inner text-white">
+                    <BookOpen className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Ukończone lekcje
+                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Lekcje
                     </div>
                     {dataLoading || isRefreshing ? (
-                      <Skeleton className="h-6 w-14 mt-1" />
+                      <Skeleton className="h-6 w-14 mt-0.5" />
                     ) : (
-                      <div className="text-xl sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                        {stats?.completedLessonsCount ?? 0}/
-                        {stats?.totalLessonsCount ?? 0}
+                      <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                        {completedLessons}/{totalLessons}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-          {/* Rekomendacja - poprawiona responsywność */}
-          {recommendedPath && !dataLoading && (
-            <CardFooter className="pt-0">
-              <div className="w-full bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg border dark:border-gray-700">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
-                  <h3 className="font-medium text-gray-800 dark:text-gray-200">
-                    Rekomendowane dla Ciebie
-                  </h3>
-                  <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                    {recommendedPath.progress > 0
-                      ? "Kontynuuj naukę"
-                      : "Rozpocznij nowy moduł"}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: recommendedPath.iconColor || "#4F46E5",
-                    }}
-                  >
-                    <span className="text-xl text-white">
-                      {recommendedPath.icon || "📚"}
+            </CardContent>
+            {/* Rekomendacja */}
+            {recommendedPath && !dataLoading && (
+              <CardFooter className="pt-0">
+                <div className="w-full bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 p-4 rounded-lg border dark:border-gray-700">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-200 text-base">
+                      Rekomendowane dla Ciebie
+                    </h3>
+                    <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-2 py-0.5 rounded-full">
+                      {recommendedPath.progress > 0
+                        ? "Kontynuuj naukę"
+                        : "Rozpocznij nowy moduł"}
                     </span>
                   </div>
-                  <div className="flex-grow w-full sm:w-auto">
-                    <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                      {recommendedPath.title}
-                    </h4>
-                    <Progress
-                      value={recommendedPath.progress}
-                      className="h-1.5 mt-1"
-                      aria-label={`Postęp w module ${recommendedPath.title}: ${recommendedPath.progress}%`}
-                    />
-                  </div>
-                  <Link
-                    href={`/learning/${recommendedPath.id}`}
-                    className="w-full sm:w-auto mt-2 sm:mt-0"
-                  >
-                    <Button
-                      size="sm"
-                      className="w-full sm:w-auto flex items-center gap-1"
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 shadow"
+                      style={{
+                        backgroundColor: recommendedPath.iconColor || "#6366F1",
+                      }}
                     >
-                      {recommendedPath.progress > 0
-                        ? "Kontynuuj"
-                        : "Rozpocznij"}
-                      <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </CardFooter>
-          )}
-        </Card>
-
-        {/* Karta codziennej aktywności - zajmuje mniej miejsca na LG */}
-        <Card className="lg:col-span-4 shadow-sm hover:shadow-md transition-shadow border dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">
-              Dzienna aktywność
-            </CardTitle>
-            <CardDescription>Twoja seria i dzienne cele</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {/* Streak */}
-            <div className="flex items-center gap-4">
-              <div className="bg-orange-100 dark:bg-orange-800/50 p-3 sm:p-4 rounded-full">
-                <Flame className="h-6 w-6 sm:h-8 sm:w-8 text-orange-500 dark:text-orange-400" />
-              </div>
-              <div>
-                {dataLoading || isRefreshing ? (
-                  <Skeleton className="h-8 w-12 mb-1" />
-                ) : (
-                  <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                    {streak}
+                      <span className="text-2xl text-white">
+                        {recommendedPath.icon || "💡"}
+                      </span>
+                    </div>
+                    <div className="flex-grow w-full sm:w-auto">
+                      <h4 className="font-semibold text-gray-900 dark:text-gray-100">
+                        {recommendedPath.title}
+                      </h4>
+                      <Progress
+                        value={recommendedPath.progress}
+                        className="h-1.5 mt-1 bg-gray-200 dark:bg-gray-600 [&>div]:bg-indigo-500"
+                        aria-label={`Postęp: ${recommendedPath.progress}%`}
+                      />
+                    </div>
+                    <Link
+                      href={`/learning/${recommendedPath.id}`}
+                      className="w-full sm:w-auto mt-2 sm:mt-0"
+                    >
+                      <Button
+                        size="sm"
+                        className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+                      >
+                        {recommendedPath.progress > 0
+                          ? "Kontynuuj"
+                          : "Rozpocznij"}{" "}
+                        <ArrowRight className="h-4 w-4 ml-1.5" />
+                      </Button>
+                    </Link>
                   </div>
+                </div>
+              </CardFooter>
+            )}
+          </Card>
+
+          {/* Zakładki z ścieżkami nauki */}
+          <Tabs defaultValue="in-progress">
+            <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-grid mb-4 h-auto sm:h-10 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <TabsTrigger
+                value="in-progress"
+                className="relative px-2 py-1.5 sm:px-4 text-xs sm:text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md"
+              >
+                W trakcie
+                {inProgressPaths.length > 0 && !dataLoading && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-[10px] bg-indigo-500 text-white rounded-full">
+                    {inProgressPaths.length}
+                  </span>
                 )}
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Dni z rzędu
-                </div>
-              </div>
-            </div>
-            {/* Dzienny cel */}
-            <div className="pt-2">
-              <div className="flex justify-between items-center mb-2 text-sm">
-                <h3 className="font-medium text-gray-700 dark:text-gray-300">
-                  Dzienny cel
-                </h3>
-                <span
-                  className={`font-medium ${
-                    dailyGoalCompleted
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-gray-500 dark:text-gray-400"
-                  }`}
-                >
-                  {dailyGoalCompleted ? "Osiągnięty" : "Nieosiągnięty"}
-                </span>
-              </div>
-              <Progress
-                value={dailyGoalCompleted ? 100 : 0}
-                className="h-2"
-                aria-label={`Dzienny cel: ${
-                  dailyGoalCompleted ? "Osiągnięty" : "Nieosiągnięty"
-                }`}
-              />
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {dailyGoalCompleted
-                  ? "Gratulacje! Cel na dziś zrealizowany."
-                  : "Ukończ lekcję, aby osiągnąć cel."}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Zakładki z ścieżkami nauki - responsywne */}
-      <Tabs defaultValue="in-progress" className="mb-8">
-        {/* TabsList z lepszą responsywnością */}
-        <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-grid mb-4 h-auto sm:h-10">
-          <TabsTrigger
-            value="in-progress"
-            className="relative px-2 py-1.5 sm:px-4 sm:py-2 h-full"
-          >
-            Kontynuuj
-            {inProgressPaths.length > 0 && !dataLoading && (
-              <span className="hidden sm:inline-block ml-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-1.5 py-0.5 rounded-full">
-                {inProgressPaths.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="not-started"
-            className="px-2 py-1.5 sm:px-4 sm:py-2 h-full"
-          >
-            Rozpocznij
-            {notStartedPaths.length > 0 && !dataLoading && (
-              <span className="hidden sm:inline-block ml-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs px-1.5 py-0.5 rounded-full">
-                {notStartedPaths.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="completed"
-            className="px-2 py-1.5 sm:px-4 sm:py-2 h-full"
-          >
-            Ukończone
-            {completedPaths.length > 0 && !dataLoading && (
-              <span className="hidden sm:inline-block ml-2 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs px-1.5 py-0.5 rounded-full">
-                {completedPaths.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Kontener zakładek */}
-        <div className="min-h-[200px]">
-          {/* Stan ładowania dla zakładek */}
-          {dataLoading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Skeleton className="h-48 w-full rounded-lg" />
-              <Skeleton className="h-48 w-full rounded-lg" />
-            </div>
-          )}
-
-          {/* Zakładka: Kontynuuj naukę */}
-          {!dataLoading && (
-            <TabsContent value="in-progress">
-              {inProgressPaths.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {inProgressPaths.map((path) => (
-                    <Card
-                      key={path.id}
-                      className="overflow-hidden border-l-4 shadow-sm hover:shadow-md transition-shadow dark:border-gray-700"
-                      style={{ borderLeftColor: path.iconColor || "#4F46E5" }}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: path.iconColor || "#4F46E5",
-                            }}
-                          >
-                            <span className="text-xl text-white">
-                              {path.icon || "📚"}
-                            </span>
-                          </div>
-                          <div>
-                            <CardTitle className="text-base sm:text-lg">
-                              {path.title}
-                            </CardTitle>
-                            <CardDescription className="line-clamp-1 text-xs sm:text-sm">
-                              {path.progress}% ukończono
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pb-4 pt-2">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
-                          {path.description}
-                        </p>
-                        <Progress
-                          value={path.progress}
-                          className="h-1.5 mb-1"
-                          aria-label={`Postęp: ${path.progress}%`}
-                        />
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {path.completedLessons}/{path.totalLessons} lekcji
-                        </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Link href={`/learning/${path.id}`} className="w-full">
-                          <Button className="w-full">Kontynuuj</Button>
-                        </Link>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
-                  <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">
-                    Brak modułów w trakcie nauki.
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                    Rozpocznij naukę jednego z dostępnych modułów!
-                  </p>
+              </TabsTrigger>
+              <TabsTrigger
+                value="not-started"
+                className="px-2 py-1.5 sm:px-4 text-xs sm:text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md"
+              >
+                Do rozpoczęcia
+                {notStartedPaths.length > 0 && !dataLoading && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-[10px] bg-gray-400 text-white rounded-full">
+                    {notStartedPaths.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger
+                value="completed"
+                className="px-2 py-1.5 sm:px-4 text-xs sm:text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md"
+              >
+                Ukończone
+                {completedPaths.length > 0 && !dataLoading && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-[10px] bg-green-500 text-white rounded-full">
+                    {completedPaths.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            <div className="min-h-[250px]">
+              {" "}
+              {/* Minimalna wysokość dla zawartości zakładek */}
+              {dataLoading && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+                  <Skeleton className="h-56 w-full rounded-lg" />
+                  <Skeleton className="h-56 w-full rounded-lg sm:hidden lg:block" />{" "}
+                  {/* Pokazuj drugi szkielet na lg */}
                 </div>
               )}
-            </TabsContent>
-          )}
-
-          {/* Zakładka: Rozpocznij naukę */}
-          {!dataLoading && (
-            <TabsContent value="not-started">
-              {notStartedPaths.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {notStartedPaths.map((path) => (
-                    <Card
-                      key={path.id}
-                      className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-800 flex flex-col"
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: path.iconColor || "#4F46E5",
-                            }}
+              {!dataLoading && (
+                <>
+                  <TabsContent value="in-progress">
+                    {inProgressPaths.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {inProgressPaths.map((path) => (
+                          <Card
+                            key={path.id}
+                            className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col"
                           >
-                            <span className="text-xl text-white">
-                              {path.icon || "📚"}
-                            </span>
-                          </div>
-                          <CardTitle className="text-base sm:text-lg">
-                            {path.title}
-                          </CardTitle>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pb-4 flex-grow">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {path.description}
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{
+                                    backgroundColor:
+                                      path.iconColor || "#6366F1",
+                                  }}
+                                >
+                                  <span className="text-xl text-white">
+                                    {path.icon || "📚"}
+                                  </span>
+                                </div>
+                                <div>
+                                  <CardTitle className="text-base font-semibold">
+                                    {path.title}
+                                  </CardTitle>
+                                  <CardDescription className="text-xs">
+                                    {path.progress}% ukończono
+                                  </CardDescription>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pb-4 pt-0 flex-grow">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
+                                {path.description}
+                              </p>
+                              <Progress
+                                value={path.progress}
+                                className="h-1.5 mb-1 bg-gray-200 dark:bg-gray-700 [&>div]:bg-indigo-500"
+                                aria-label={`Postęp: ${path.progress}%`}
+                              />
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {path.completedLessons}/{path.totalLessons}{" "}
+                                lekcji
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Link
+                                href={`/learning/${path.id}`}
+                                className="w-full"
+                              >
+                                <Button
+                                  size="sm"
+                                  className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+                                >
+                                  Kontynuuj
+                                </Button>
+                              </Link>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
+                        <BookOpen className="mx-auto h-10 w-10 text-gray-400" />
+                        <p className="mt-3 text-gray-600 dark:text-gray-400">
+                          Brak modułów w trakcie.
                         </p>
-                      </CardContent>
-                      <CardFooter>
-                        <Link href={`/learning/${path.id}`} className="w-full">
-                          <Button variant="outline" className="w-full">
-                            Rozpocznij
-                          </Button>
-                        </Link>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
-                  <Star className="mx-auto h-12 w-12 text-gray-400" />
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">
-                    Wszystkie dostępne moduły zostały rozpoczęte.
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                    Świetna robota!
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-          )}
-
-          {/* Zakładka: Ukończone */}
-          {!dataLoading && (
-            <TabsContent value="completed">
-              {completedPaths.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {completedPaths.map((path) => (
-                    <Card
-                      key={path.id}
-                      className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 shadow-sm hover:shadow-md transition-shadow flex flex-col"
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: path.iconColor || "#10B981",
-                            }}
-                          >
-                            <span className="text-xl text-white">
-                              {path.icon || "✅"}
-                            </span>
-                          </div>
-                          <div>
-                            <CardTitle className="text-base sm:text-lg">
-                              {path.title}
-                            </CardTitle>
-                            <CardDescription className="text-green-700 dark:text-green-400 font-medium">
-                              Ukończono
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pb-4 flex-grow">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                          {path.description}
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                          Rozpocznij nową ścieżkę!
                         </p>
-                        <div className="text-sm text-green-600 dark:text-green-300 font-medium">
-                          {path.completedLessons}/{path.totalLessons} lekcji
-                        </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Link href={`/learning/${path.id}`} className="w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full bg-white dark:bg-gray-950"
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="not-started">
+                    {notStartedPaths.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {notStartedPaths.map((path) => (
+                          <Card
+                            key={path.id}
+                            className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col"
                           >
-                            Powtórz
-                          </Button>
-                        </Link>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
-                  <Medal className="mx-auto h-12 w-12 text-gray-400" />
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">
-                    Nie ukończono jeszcze żadnego modułu.
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                    Kontynuuj naukę, aby zdobywać osiągnięcia!
-                  </p>
-                </div>
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{
+                                    backgroundColor:
+                                      path.iconColor || "#6366F1",
+                                  }}
+                                >
+                                  <span className="text-xl text-white">
+                                    {path.icon || "📚"}
+                                  </span>
+                                </div>
+                                <CardTitle className="text-base font-semibold">
+                                  {path.title}
+                                </CardTitle>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pb-4 flex-grow">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                                {path.description}
+                              </p>
+                            </CardContent>
+                            <CardFooter>
+                              <Link
+                                href={`/learning/${path.id}`}
+                                className="w-full"
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                >
+                                  Rozpocznij
+                                </Button>
+                              </Link>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
+                        <Star className="mx-auto h-10 w-10 text-gray-400" />
+                        <p className="mt-3 text-gray-600 dark:text-gray-400">
+                          Wszystkie moduły rozpoczęte.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                          Świetnie!
+                        </p>
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="completed">
+                    {completedPaths.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {completedPaths.map((path) => (
+                          <Card
+                            key={path.id}
+                            className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 shadow-sm hover:shadow-md transition-shadow flex flex-col opacity-80 hover:opacity-100"
+                          >
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow">
+                                  <CheckCircle className="h-6 w-6" />
+                                </div>
+                                <div>
+                                  <CardTitle className="text-base font-semibold">
+                                    {path.title}
+                                  </CardTitle>
+                                  <CardDescription className="text-green-700 dark:text-green-400 font-medium text-xs">
+                                    Ukończono
+                                  </CardDescription>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pb-4 flex-grow">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
+                                {path.description}
+                              </p>
+                              <div className="text-xs text-green-600 dark:text-green-300 font-medium">
+                                {path.completedLessons}/{path.totalLessons}{" "}
+                                lekcji
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Link
+                                href={`/learning/${path.id}`}
+                                className="w-full"
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                >
+                                  Powtórz
+                                </Button>
+                              </Link>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-lg border dark:border-gray-700">
+                        <Medal className="mx-auto h-10 w-10 text-gray-400" />
+                        <p className="mt-3 text-gray-600 dark:text-gray-400">
+                          Nie ukończono jeszcze modułów.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                          Kontynuuj naukę!
+                        </p>
+                      </div>
+                    )}
+                  </TabsContent>
+                </>
               )}
-            </TabsContent>
-          )}
+            </div>
+          </Tabs>
         </div>
-      </Tabs>
 
-      {/* Ostatnia aktywność - poprawiona responsywność */}
-      <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
-            <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            Ostatnia aktywność
-          </CardTitle>
-          <CardDescription>
-            Historia Twoich ostatnich działań na platformie
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Stan ładowania aktywności */}
-            {(dataLoading || isRefreshing) && !recentActivity.length && (
-              <>
-                <div className="flex gap-4 animate-pulse">
-                  <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
-                  <div className="space-y-2 flex-grow">
-                    <Skeleton className="h-5 w-3/5" />
-                    <Skeleton className="h-4 w-4/5" />
-                  </div>
-                  <Skeleton className="h-4 w-16" />
+        {/* Prawa kolumna (mniejsza) */}
+        <div className="lg:col-span-1 space-y-6 lg:space-y-8">
+          {/* Karta codziennej aktywności */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <CalendarClock className="text-orange-500" /> Dzienna aktywność
+              </CardTitle>
+              <CardDescription>Twoja seria i dzienne cele</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Streak */}
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-orange-400 to-red-500 p-3 rounded-full shadow-lg text-white">
+                  <Flame className="h-7 w-7" />
                 </div>
-                <div className="flex gap-4 animate-pulse">
-                  <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
-                  <div className="space-y-2 flex-grow">
-                    <Skeleton className="h-5 w-2/5" />
-                    <Skeleton className="h-4 w-3/5" />
+                <div>
+                  {dataLoading || isRefreshing ? (
+                    <Skeleton className="h-8 w-12 mb-0.5" />
+                  ) : (
+                    <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                      {streak}
+                    </div>
+                  )}
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Dni serii
                   </div>
-                  <Skeleton className="h-4 w-16" />
                 </div>
-              </>
-            )}
-            {/* Wyświetlanie aktywności */}
-            {!dataLoading && !isRefreshing && recentActivity.length > 0 && (
-              <div className="flow-root">
-                <ul className="-mb-8">
-                  {recentActivity.map((activity, activityIdx) => (
-                    <li key={activity.id}>
-                      <div className="relative pb-8">
-                        {activityIdx !== recentActivity.length - 1 ? (
+              </div>
+              {/* Dzienny cel */}
+              <div className="pt-1">
+                <div className="flex justify-between items-center mb-1.5 text-sm">
+                  <h3 className="font-medium text-gray-700 dark:text-gray-300">
+                    Dzienny cel
+                  </h3>
+                  <span
+                    className={`font-medium text-xs px-2 py-0.5 rounded-full ${
+                      dailyGoalCompleted
+                        ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    {dailyGoalCompleted ? "Osiągnięty" : "Do zrobienia"}
+                  </span>
+                </div>
+                <Progress
+                  value={dailyGoalCompleted ? 100 : 0}
+                  className="h-1.5 bg-gray-200 dark:bg-gray-700 [&>div]:bg-green-500"
+                  aria-label={`Dzienny cel: ${
+                    dailyGoalCompleted ? "Osiągnięty" : "Do zrobienia"
+                  }`}
+                />
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                  {dailyGoalCompleted
+                    ? "Gratulacje!"
+                    : "Ukończ lekcję, aby zaliczyć cel."}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Ostatnia aktywność */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow border dark:border-gray-700 bg-white dark:bg-gray-800">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="text-teal-500" /> Ostatnia aktywność
+              </CardTitle>
+              <CardDescription>Twoje najnowsze działania</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-5 max-h-96 overflow-y-auto pr-1 -mr-1">
+                {" "}
+                {/* Scroll */}
+                {(dataLoading || isRefreshing) &&
+                  !recentActivity.length &&
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex gap-3 animate-pulse">
+                      <Skeleton className="h-9 w-9 rounded-full flex-shrink-0" />
+                      <div className="space-y-1.5 flex-grow">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-full" />
+                      </div>
+                    </div>
+                  ))}
+                {!dataLoading && !isRefreshing && recentActivity.length > 0 && (
+                  <ul className="-mb-5">
+                    {recentActivity.map((activity, activityIdx) => (
+                      <li key={activity.id} className="relative pb-5">
+                        {activityIdx !== recentActivity.length - 1 && (
                           <span
-                            className="absolute left-5 top-5 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
+                            className="absolute left-4.5 top-5 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
                             aria-hidden="true"
                           />
-                        ) : null}
+                        )}
                         <div className="relative flex items-start space-x-3">
                           <div className="relative">
-                            <span className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center ring-4 ring-white dark:ring-gray-900">
+                            <span className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
                               {activity.icon || (
                                 <Clock className="h-5 w-5 text-gray-400" />
                               )}
                             </span>
                           </div>
-                          <div className="min-w-0 flex-1 py-1.5">
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                          <div className="min-w-0 flex-1 pt-0.5">
+                            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                              <span className="font-medium text-gray-800 dark:text-gray-100 mr-1">
                                 {activity.title}
                               </span>
-                              <span className="whitespace-nowrap float-right">
+                              <span className="whitespace-nowrap float-right text-xs">
                                 {activity.date}
                               </span>
                             </div>
-                            <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                            <p className="mt-0.5 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                               {activity.description}
                             </p>
                           </div>
                         </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!dataLoading &&
+                  !isRefreshing &&
+                  recentActivity.length === 0 && (
+                    <div className="text-center py-6 text-sm text-gray-500 dark:text-gray-400">
+                      Brak aktywności.
+                    </div>
+                  )}
               </div>
-            )}
-            {/* Brak aktywności */}
-            {!dataLoading && !isRefreshing && recentActivity.length === 0 && (
-              <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                Brak ostatnich aktywności do wyświetlenia.
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
