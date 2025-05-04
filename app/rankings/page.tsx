@@ -1,25 +1,25 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import useSWR from "swr";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Dodano Alert
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // Dodano Avatar
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card"; // Użyjemy CardContent dla kontenera
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils"; // Dodano cn
 import {
-  Flame,
-  CalendarDays,
-  TrendingUp,
-  Trophy,
-  Users,
   AlertCircle,
+  Award,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Award,
+  Flame,
+  TrendingUp,
+  Users,
 } from "lucide-react"; // Dodano ikony
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // Dodano Avatar
-import { cn } from "@/lib/utils"; // Dodano cn
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Dodano Alert
+import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
+import { Player } from "../types/Player";
 
 // Fetcher (bez zmian - zakładamy, że działa poprawnie z credentials: 'include')
 const fetcher = async (url: string) => {
@@ -43,18 +43,6 @@ const fetcher = async (url: string) => {
     throw error;
   }
 };
-
-// Typ gracza (dla lepszej czytelności)
-interface Player {
-  id: string;
-  firstName: string;
-  lastName: string;
-  userName: string; // Dodaj userName dla fallbacku awatara
-  level?: number;
-  streak?: number;
-  joinedAt?: string;
-  // Dodaj inne pola, jeśli API je zwraca
-}
 
 export default function RankingPage() {
   const [category, setCategory] = useState<"level" | "streak" | "joined-time">(

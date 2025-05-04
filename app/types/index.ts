@@ -3,10 +3,10 @@
 import { JSX } from "react";
 
 export interface TestCase {
-  id: string; // Unikalne ID testu w ramach kroku
-  input: string; // Dane wejściowe jako string (do sparsowania)
-  expectedOutput: string; // Oczekiwany wynik jako string (do sparsowania i porównania)
-  description?: string; // Opcjonalny opis testu
+  id: string;
+  input: string;
+  expectedOutput: string;
+  description?: string;
 }
 
 export interface Step {
@@ -130,3 +130,5 @@ export interface ErrorResponse {
   message: string;
   errors?: Record<string, string[]>;
 }
+export * from "./auth";
+export * from "./Player";

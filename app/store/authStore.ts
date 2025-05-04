@@ -122,7 +122,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             experiencePoints: data.experiencePoints || 0,
             level: data.level || 1,
             joinedAt: data.joinedAt || new Date().toISOString(), // Upewnij się, że API zwraca joinedAt
-            streak: data.streak || 0, // Dodano streak, jeśli jest
           },
           isAuthenticated: true,
           isLoading: false,
@@ -148,17 +147,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   // Akcja aktualizacji użytkownika (przykład)
-  updateUser: async (updatedFields: Partial<User>) => {
-    if (!get().user) return false; // Nie można aktualizować niezalogowanego użytkownika
+  updateUser: async (updatedFields: User) => {
+    // Typ pozostaje User na potrzeby testów
+    if (!get().user) return false;
     set({ isLoading: true, error: null });
     try {
-      // Zakładając endpoint PUT /api/Auth/profile lub podobny
       const updatedUserFromApi = await apiService.put<User>(
         "Auth/user",
         updatedFields
       );
       set({ user: updatedUserFromApi, isLoading: false });
-
       return true;
     } catch (error: any) {
       set({
@@ -172,7 +170,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Akcja czyszczenia błędów
+  // clearError bez zmian
   clearError: () => {
     set({ error: null });
   },
