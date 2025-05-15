@@ -1,4 +1,4 @@
-import { EmptyModuleMessageProps } from "./types";
+import { EmptyModuleMessageProps } from "../types";
 
 export default function EmptyModuleMessage({
   icon,

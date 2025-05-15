@@ -1,16 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useAuthStore } from "../store/authStore";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
 import {
   Card,
   CardContent,
@@ -19,10 +9,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"; // Import Card
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"; // Import Label
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
-import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"; // Import ikony
-import { LoadingButton } from "./ui/LoadingButton";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Eye, EyeOff, Lock, Mail } from "lucide-react"; // Import ikony
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { useAuthStore } from "../../store/authStore";
+import { LoadingButton } from "../ui/LoadingButton";
 
 const loginSchema = z.object({
   email: z.string().email("Nieprawidłowy format adresu email."),

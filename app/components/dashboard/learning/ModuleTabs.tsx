@@ -2,9 +2,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Medal, Star } from "lucide-react";
 import { useMemo } from "react";
-import LearningPathCard from "./LearningPathCard";
-import { ModuleTabsProps } from "./types";
+import { ModuleTabsProps } from "../types";
 import EmptyModuleMessage from "./EmptyModuleMessage";
+import LearningPathCard from "./LearningPathCard";
 
 export default function ModuleTabs({
   learningPaths,

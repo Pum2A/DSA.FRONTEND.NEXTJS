@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, Clock } from "lucide-react";
-import { ActivityCardProps } from "./types";
+import { ActivityCardProps } from "../types";
 
 // Komponent dla pojedynczego szkieletu karty
 const SkeletonCard = ({ className = "" }: { className?: string }) => (

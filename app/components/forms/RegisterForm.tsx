@@ -1,15 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useAuthStore } from "../store/authStore";
-import { toast } from "sonner";
+import { useAuthStore } from "@/app/store/authStore";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -18,18 +10,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  User,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
-import { LoadingButton } from "./ui/LoadingButton";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { LoadingButton } from "../ui/LoadingButton";
 
 // Schemat walidacji (bez zmian, ale z lepszymi komunikatami)
 const registerSchema = z

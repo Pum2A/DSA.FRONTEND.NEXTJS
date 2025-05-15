@@ -10,7 +10,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { LearningPathCardProps } from "./types";
+import { LearningPathCardProps } from "../types";
 
 export default function LearningPathCard({
   path,

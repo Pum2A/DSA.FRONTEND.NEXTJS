@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useReducer } from "react";
-import ActivityCard from "../components/dashboard/ActivityCard";
-import DailyStreakCard from "../components/dashboard/DailyStreakCard";
-import ModuleTabs from "../components/dashboard/ModuleTabs";
-import ProgressCard from "../components/dashboard/ProgressCard";
+import ActivityCard from "../components/dashboard/activity/ActivityCard";
+import ModuleTabs from "../components/dashboard/learning/ModuleTabs";
+import DailyStreakCard from "../components/dashboard/progress/DailyStreakCard";
+import ProgressCard from "../components/dashboard/progress/ProgressCard";
 import {
   dashboardReducer,
   initialDashboardState,
@@ -19,7 +19,7 @@ import {
   processModuleData,
   processStreakData,
   processUserActivity,
-} from "../components/dashboard/utils";
+} from "../components/utils/utils";
 import { Module, UserStats } from "../types";
 
 export default function DashboardPage() {

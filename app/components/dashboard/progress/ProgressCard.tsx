@@ -9,8 +9,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, BookOpen, Lightbulb, Star } from "lucide-react";
-import RecommendedModule from "./RecommendedModule";
-import { ProgressCardProps } from "./types";
+import RecommendedModule from "../learning/RecommendedModule";
+import { ProgressCardProps } from "../types";
 
 export default function ProgressCard({
   stats,
