@@ -1,10 +1,10 @@
+import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Toaster } from "sonner";
+import { Navbar } from "./components/ui/Navbar";
 import "./globals.css";
 import { AuthProvider } from "./providers/AuthProvider";
-import { Navbar } from "./components/Navbar";
-import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/react";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {

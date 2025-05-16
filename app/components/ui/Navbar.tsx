@@ -1,23 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  BookOpen,
-  Award,
-  Menu,
-  X,
-  LogOut,
-  User as UserIcon,
-  ChevronDown,
-  Bell,
-  Loader2,
-  Settings,
-  LifeBuoy,
-} from "lucide-react"; // Dodano ikony
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,14 +10,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuthStore } from "../store/authStore";
-import useSWR from "swr";
-import { apiService } from "../lib/api";
-import { User } from "../types/auth"; // Poprawiono ścieżkę
 import { cn } from "@/lib/utils"; // Dodano cn
-import NotificationsDropdown from "./ui/NotificationsDropdown";
+import {
+  Award,
+  BookOpen,
+  ChevronDown,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  Menu,
+  User as UserIcon,
+  X,
+} from "lucide-react"; // Dodano ikony
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { apiService } from "../../lib/api";
+import { useAuthStore } from "../../store/authStore";
+import { User } from "../../types/auth"; // Poprawiono ścieżkę
+import NotificationsDropdown from "./NotificationsDropdown";
 
 export function Navbar() {
   const { isAuthenticated, logout } = useAuthStore();

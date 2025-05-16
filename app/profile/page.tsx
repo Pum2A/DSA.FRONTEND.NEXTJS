@@ -1,49 +1,39 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useEffect, JSX, useCallback } from "react";
-import Link from "next/link";
+import { apiService } from "@/app/lib/api";
+import { useAuthStore } from "@/app/store/authStore";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Dodano Card
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuthStore } from "@/app/store/authStore";
-import { apiService } from "@/app/lib/api";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CalendarDays,
-  Mail,
-  User,
-  UserRound,
-  Award,
   Activity,
-  Github,
   AlertCircle,
-  Star,
-  Shield,
-  Edit2,
-  Save,
-  UserCog,
-  Flame,
+  Award,
   BookOpen,
+  CalendarDays,
+  CheckCircle,
+  Clock,
+  Edit2,
+  Flame,
+  Github,
+  Lock,
   Medal,
   RefreshCw,
+  Save,
+  Shield,
+  User,
+  UserCog,
+  UserRound,
   X,
-  CheckCircle,
-  Lock,
-  Clock,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRouter } from "next/navigation";
+import { JSX, useCallback, useEffect, useState } from "react";
 import AchievementsSection from "../components/ui/AchievementsSection"; // Upewnij się co do ścieżki
-import { Progress } from "@/components/ui/progress";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"; // Dodano Card
 
 // Typy i Enumy (bez zmian)
 interface User {
@@ -169,6 +159,8 @@ export default function ProfilePage() {
 
       const fetchedUser = userDataResponse as User;
       setDisplayUser(fetchedUser); // Aktualizujemy displayUser
+      console.log("Streak response:", streakResponse);
+
       // Aktualizujemy formData tylko jeśli nie edytujemy
       if (!isEditing) {
         setFormData({

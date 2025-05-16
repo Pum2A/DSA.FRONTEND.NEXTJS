@@ -104,7 +104,12 @@ export default function RankingPage() {
       case "level":
         return `Poziom ${player.level ?? "?"}`;
       case "streak":
-        return `${player.streak ?? "?"} dni serii`;
+        // Explicitly check if streak is undefined or null, not if it's falsy
+        return `${
+          player.streak !== undefined && player.streak !== null
+            ? player.streak
+            : "?"
+        } dni serii`;
       case "joined-time":
         return player.joinedAt
           ? `Dołączono ${new Date(player.joinedAt).toLocaleDateString("pl-PL")}`
@@ -113,7 +118,6 @@ export default function RankingPage() {
         return "";
     }
   };
-
   // Ikona dla kategorii
   const categoryIcon = useMemo(() => {
     switch (category) {
@@ -284,7 +288,8 @@ export default function RankingPage() {
                               {player.firstName} {player.lastName}
                             </p>
                             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                              @{player.userName}
+                              @{player.firstName.toLowerCase()}{" "}
+                              {player.lastName.toLowerCase()}
                             </p>
                           </div>
                           {/* Wartość rankingu */}
