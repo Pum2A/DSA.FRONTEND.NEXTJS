@@ -1,7 +1,7 @@
 "use client";
 
+import { useNotifications } from "@/app/hooks";
 import { Bell, CheckCircle } from "lucide-react";
-import { useNotifications } from "@/app/hooks/useNotifications";
 
 export default function NotificationsList() {
   const { notifications, isLoading } = useNotifications();

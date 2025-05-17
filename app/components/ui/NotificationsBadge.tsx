@@ -1,6 +1,6 @@
 "use client";
 
-import { useNotifications } from "@/app/hooks/useNotifications";
+import { useNotifications } from "@/app/hooks";
 import { Bell } from "lucide-react";
 import Link from "next/link";
 

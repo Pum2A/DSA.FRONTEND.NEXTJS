@@ -1,4 +1,4 @@
-import { useNotifications } from "@/app/hooks/useNotifications";
+import { useNotifications } from "@/app/hooks";
 import { Award } from "lucide-react";
 
 export default function AchievementsSection() {

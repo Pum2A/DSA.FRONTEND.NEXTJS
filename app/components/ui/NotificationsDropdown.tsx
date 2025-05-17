@@ -6,30 +6,31 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNotifications } from "@/app/hooks/useNotifications";
 import { notificationService } from "@/app/services/notificationService";
+import { useNotifications } from "@/app/hooks";
 
 export default function NotificationsDropdown() {
   const { notifications, isLoading, refresh } = useNotifications();
   const unread = notifications.filter((n) => !n.isRead).length;
 
+  // Oznacza wszystkie powiadomienia jako przeczytane
   const markAllAsRead = async () => {
     try {
-      // Mark all unread notifications as read
       const unreadNotifications = notifications.filter((n) => !n.isRead);
       for (const notification of unreadNotifications) {
         await notificationService.markAsRead(notification.id);
       }
-      refresh(); // Refresh the notifications list
+      refresh();
     } catch (error) {
       console.error("Error marking notifications as read:", error);
     }
   };
 
+  // Oznacza jedno powiadomienie jako przeczytane
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationService.markAsRead(notificationId);
-      refresh(); // Refresh the notifications list
+      refresh();
     } catch (error) {
       console.error(
         `Error marking notification ${notificationId} as read`,
@@ -87,6 +88,7 @@ export default function NotificationsDropdown() {
                     : "bg-blue-50"
                 }`}
               >
+                {/* Dobierz ikonę zależnie od typu */}
                 {n.type === "achievement" ? (
                   <Award className="text-yellow-500 h-5 w-5 mt-1" />
                 ) : n.type === "level-up" ? (
