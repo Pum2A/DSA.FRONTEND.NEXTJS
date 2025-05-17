@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { Navbar } from "./components/ui/Navbar";
 import "./globals.css";
 import { AuthProvider } from "./providers/AuthProvider";
+import GlobalLoader from "./components/ui/GlobalLoader";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -24,6 +25,8 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           <Analytics />
+          <GlobalLoader />
+
           <main className="min-h-screen bg-gray-50">{children}</main>
           <footer className="bg-gray-800 text-white py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,8 +38,8 @@ export default function RootLayout({
                   </p>
                 </div>
                 <div className="text-sm text-gray-300">
-                  &copy; {new Date().getFullYear()} DSA Learning. Wszystkie
-                  prawa zastrzeżone.
+                  {new Date().getFullYear()} DSA Learning. Wszystkie prawa
+                  zastrzeżone.
                 </div>
               </div>
             </div>
