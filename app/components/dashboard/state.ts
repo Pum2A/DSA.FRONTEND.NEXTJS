@@ -1,4 +1,5 @@
 import { LearningPath, Module, User, UserStats } from "@/app/types";
+import { JSX } from "react";
 
 // Typy dla obsługi stanu
 export type DashboardState = {
@@ -13,6 +14,8 @@ export type DashboardState = {
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
+  // DODAJ TO POLE:
+  recommendedPath?: LearningPath;
 };
 
 export type DashboardAction =
@@ -28,6 +31,8 @@ export type DashboardAction =
         recentActivity: any[];
         dailyGoalCompleted: boolean;
         overallProgress: number;
+        // DODAJ TO POLE:
+        recommendedPath?: LearningPath;
       };
     }
   | { type: "FETCH_ERROR"; payload: string }
@@ -46,8 +51,10 @@ export const initialDashboardState: DashboardState = {
   isLoading: true,
   isRefreshing: false,
   error: null,
+  recommendedPath: undefined, // DODAJ INICJALIZACJĘ
 };
 
+// Reducer pozostaje bez zmian, bo ...action.payload nadpisze recommendedPath jeśli będzie w payload.
 export function dashboardReducer(
   state: DashboardState,
   action: DashboardAction

@@ -23,10 +23,9 @@ import { apiService } from "@/app/lib/api";
 import StepRenderer from "@/app/components/learning/StepRenderer";
 import ProgressBar from "@/app/components/learning/ProgressBar";
 import { LoadingButton } from "@/app/components/ui/LoadingButton";
-import { useUserStats } from "@/app/hooks/useUser";
-import { useNotifications } from "@/app/hooks/useNotifications";
 import Confetti from "react-confetti";
 import { useWindowSize } from "react-use";
+import { useNotifications, useUserStats } from "@/app/hooks";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{
