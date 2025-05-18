@@ -1,42 +1,61 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, BookHeart, PackageX, RefreshCcw } from "lucide-react";
-import { Module } from "@/app/types";
+import { Module } from "../types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiService } from "../lib/api";
-// === WAŻNE: Poprawny import karty i szkieletu ===
 import ModuleCard, {
   ModuleCardSkeleton,
 } from "../components/learning/ModuleCard";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useLoadingStore } from "@/app/store/loadingStore";
 
 export default function LearningPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const setGlobalLoading = useLoadingStore((s) => s.setLoading);
+
   const fetchModules = useCallback(async () => {
+    // Delayed loader to avoid flickering on fast API
+    let loaderTimeout: NodeJS.Timeout | null = null;
+    loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.lessons.getAllModules();
+      const data = await apiService.lessons.getAllModules(); // Add { signal: controller.signal } if possible
       const sortedData = [...(data as Module[])].sort(
         (a, b) => a.order - b.order
       );
       setModules(sortedData);
-    } catch (err) {
-      console.error("Error fetching modules:", err);
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
       setError("Nie udało się pobrać modułów. Spróbuj ponownie.");
     } finally {
+      if (loaderTimeout) clearTimeout(loaderTimeout);
+      setGlobalLoading(false);
       setLoading(false);
     }
-  }, []);
+  }, [setGlobalLoading]);
 
   useEffect(() => {
     fetchModules();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchModules]);
 
   if (loading) {
@@ -49,7 +68,7 @@ export default function LearningPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <ModuleCardSkeleton key={i} /> // Używa szkieletu
+            <ModuleCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -88,7 +107,6 @@ export default function LearningPage() {
       {modules.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {modules.map((module, index) => (
-            // Używa poprawionego ModuleCard
             <ModuleCard
               key={module.externalId || module.id}
               module={module}

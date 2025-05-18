@@ -1,11 +1,16 @@
 "use client";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { Avatar, AvatarFallback } from "../../../../components/ui/avatar";
+import { Skeleton } from "../../../../components/ui/skeleton";
+import {
+  LogOut,
+  User as UserIcon,
+  LayoutDashboard,
+  BookOpen,
+  Award,
+} from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { LayoutDashboard, BookOpen, Award } from "lucide-react";
+import { cn } from "../../../../lib/utils";
+import { Button } from "../../../../components/ui/button";
 
 export type NavbarMobileMenuProps = {
   isOpen: boolean;

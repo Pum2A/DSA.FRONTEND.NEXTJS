@@ -8,6 +8,7 @@ import { AuthProvider } from "./providers/AuthProvider";
 import GlobalLoader from "./components/global/GlobalLoader";
 import { GlobalErrorToast } from "./components/global/GlobalErrorToast";
 import { GlobalToast } from "./components/global/GlobalToast";
+import LoaderNavigationTrigger from "./components/global/LoaderNavigationTrigger";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           <Analytics />
+          <LoaderNavigationTrigger />
           <GlobalLoader />
           <GlobalErrorToast />
           <GlobalToast />

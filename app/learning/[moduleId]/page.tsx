@@ -1,36 +1,32 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation"; // Dodano useRouter
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertCircle,
   ArrowLeft,
   RefreshCcw,
   PackageX,
   BookOpen,
-} from "lucide-react"; // Dodano ikony
+} from "lucide-react";
 import { Module, Lesson, UserProgress } from "@/app/types";
 import { apiService } from "@/app/lib/api";
-// === Zmienione importy ===
 import LessonCard, {
   LessonCardSkeleton,
 } from "@/app/components/learning/LessonCard";
-// Importuj funkcję ikony (zakładając, że jest w ModuleCard lub przenieś ją do utils)
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLoadingStore } from "@/app/store/loadingStore";
 
-// Tymczasowa implementacja getModuleIcon (dostosuj do własnych potrzeb)
+// Funkcja do wyboru ikony modułu (przykładowa)
 function getModuleIcon(module: Module | null) {
   if (!module || !module.icon) return null;
-  // Przykład: wybierz ikonę na podstawie module.icon
   switch (module.icon) {
     case "package":
       return <PackageX className="h-8 w-8 text-white" />;
     case "book":
       return <BookOpen className="h-8 w-8 text-white" />;
-    // Dodaj inne przypadki według potrzeb
     default:
       return <PackageX className="h-8 w-8 text-white" />;
   }
@@ -38,17 +34,20 @@ function getModuleIcon(module: Module | null) {
 
 export default function ModulePage() {
   const { moduleId } = useParams<{ moduleId: string }>();
-  const router = useRouter(); // Dodano router
+  const router = useRouter();
   const [module, setModule] = useState<Module | null>(null);
   const [lessonProgress, setLessonProgress] = useState<
     Record<string, UserProgress>
-  >({}); // Klucz to externalId lekcji
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const setGlobalLoading = useLoadingStore((s) => s.setLoading);
 
-  // Funkcja pobierania danych opakowana w useCallback
   const fetchModuleData = useCallback(async () => {
     if (!moduleId) return;
+    let loaderTimeout: NodeJS.Timeout | null = null;
+    loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
+
     try {
       setLoading(true);
       setError(null);
@@ -57,14 +56,12 @@ export default function ModulePage() {
         moduleId
       )) as Module;
       if (!moduleData) throw new Error("Module not found");
-      if (!moduleData.lessons) moduleData.lessons = []; // Upewnij się, że jest tablica
+      if (!moduleData.lessons) moduleData.lessons = [];
 
       setModule(moduleData);
 
-      // Pobierz postęp dla lekcji (jeśli są)
       if (moduleData.lessons.length > 0) {
         const progressPromises = moduleData.lessons.map(async (lesson) => {
-          // Używamy externalId jako klucza, bo jest używany w URL
           if (!lesson.externalId)
             return { lessonExternalId: null, progress: null };
           try {
@@ -76,7 +73,6 @@ export default function ModulePage() {
               progress: progress as UserProgress,
             };
           } catch (err) {
-            // Ignoruj błędy 404 (brak postępu), loguj inne
             if ((err as any)?.response?.status !== 404) {
               console.error(
                 `Error fetching progress for lesson ${lesson.externalId}:`,
@@ -96,7 +92,7 @@ export default function ModulePage() {
         });
         setLessonProgress(progressMap);
       } else {
-        setLessonProgress({}); // Pusta mapa, jeśli nie ma lekcji
+        setLessonProgress({});
       }
     } catch (err: any) {
       console.error("Error fetching module:", err);
@@ -106,15 +102,17 @@ export default function ModulePage() {
           : "Nie udało się pobrać danych modułu. Spróbuj ponownie."
       );
     } finally {
+      if (loaderTimeout) clearTimeout(loaderTimeout);
+      setGlobalLoading(false);
       setLoading(false);
     }
-  }, [moduleId]);
+  }, [moduleId, setGlobalLoading]);
 
   useEffect(() => {
     fetchModuleData();
   }, [fetchModuleData]);
 
-  // === Ulepszony stan ładowania ===
+  // === Stan ładowania (tylko lokalny, globalny overlay i tak działa) ===
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-10 sm:py-16 animate-pulse">
@@ -130,14 +128,13 @@ export default function ModulePage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <LessonCardSkeleton key={i} /> // Używamy szkieletu LessonCard
+            <LessonCardSkeleton key={i} />
           ))}
         </div>
       </div>
     );
   }
 
-  // === Ulepszony stan błędu ===
   if (error || !module) {
     return (
       <div className="container mx-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-center text-center min-h-[70vh]">
@@ -160,27 +157,20 @@ export default function ModulePage() {
     );
   }
 
-  // Przygotowanie danych do renderowania
   const moduleIconElement = getModuleIcon(module);
   const accentColor = module.iconColor || "#6366F1";
-  // Sortuj lekcje po właściwości, która istnieje, np. 'id' lub 'title'
-  // Jeśli masz inną właściwość do sortowania, zamień ją poniżej
   const sortedLessons = [...(module.lessons || [])].sort((a, b) => {
-    // Przykład sortowania po 'id' (jeśli to liczba)
     if (typeof a.id === "number" && typeof b.id === "number") {
       return a.id - b.id;
     }
-    // Jeśli 'id' to string, sortuj alfabetycznie
     if (typeof a.id === "string" && typeof b.id === "string") {
       return (a.id as string).localeCompare(b.id as string);
     }
     return 0;
-  }); // Sortowanie wg 'id'
+  });
 
-  // === GŁÓWNE RENDEROWANIE ===
   return (
     <div className="container mx-auto px-4 py-10 sm:py-16">
-      {/* Przycisk powrotu */}
       <Button
         variant="ghost"
         size="sm"
@@ -190,13 +180,11 @@ export default function ModulePage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do listy modułów
       </Button>
 
-      {/* Ulepszony nagłówek modułu */}
       <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center gap-5 p-6 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/30 border dark:border-gray-700">
         <div
           className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg flex items-center justify-center shadow-lg"
           style={{ backgroundColor: accentColor }}
         >
-          {/* Zmieniamy rozmiar ikony w nagłówku */}
           {moduleIconElement && (
             <div className="transform scale-150">{moduleIconElement}</div>
           )}
@@ -214,18 +202,15 @@ export default function ModulePage() {
         </div>
       </div>
 
-      {/* Siatka lekcji lub stan pusty */}
       <h2 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-gray-200">
         Lekcje w tym module
       </h2>
       {sortedLessons.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedLessons.map((lesson, index) => {
-            const progress = lessonProgress[lesson.externalId]; // Używamy externalId
+            const progress = lessonProgress[lesson.externalId];
             const isCompleted = progress?.isCompleted || false;
-            // Załóżmy, że postęp istnieje = "w trakcie", chyba że jest ukończony
             const isInProgress = progress && !isCompleted;
-            // Prosta logika blokowania - odblokowane są tylko ukończone, w trakcie i *pierwsza* nie rozpoczęta
             const isLocked =
               !isCompleted &&
               !isInProgress &&
@@ -235,19 +220,18 @@ export default function ModulePage() {
 
             return (
               <LessonCard
-                key={lesson.externalId || lesson.id} // Preferuj externalId
+                key={lesson.externalId || lesson.id}
                 lesson={lesson}
-                moduleExternalId={module.externalId} // Używaj externalId modułu
+                moduleExternalId={module.externalId}
                 completed={isCompleted}
                 inProgress={isInProgress}
-                isLocked={isLocked} // Przekaż stan blokady
-                index={index} // Dla animacji
+                isLocked={isLocked}
+                index={index}
               />
             );
           })}
         </div>
       ) : (
-        // Ulepszony stan pusty
         <Card className="mt-8 border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 shadow-none">
           <CardContent className="py-12 flex flex-col items-center justify-center text-center">
             <BookOpen className="h-16 w-16 text-gray-400 dark:text-gray-500 mb-4" />

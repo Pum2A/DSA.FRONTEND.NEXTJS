@@ -2,22 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Dodano CardHeader, CardTitle
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  CheckCheck,
   RefreshCcw,
   ArrowLeft,
   Sparkles,
   Clock,
   Star,
-} from "lucide-react"; // Dodano ikony
+} from "lucide-react";
 import { Lesson, Step, UserProgress } from "@/app/types";
 import { apiService } from "@/app/lib/api";
 import StepRenderer from "@/app/components/learning/StepRenderer";
@@ -26,6 +24,7 @@ import { LoadingButton } from "@/app/components/ui/LoadingButton";
 import Confetti from "react-confetti";
 import { useWindowSize } from "react-use";
 import { useNotifications, useUserStats } from "@/app/hooks";
+import { useLoadingStore } from "@/app/store/loadingStore";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{
@@ -42,15 +41,21 @@ export default function LessonPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false); // Stan dla confetti
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const { refresh: refreshUserStats } = useUserStats();
   const { refresh: refreshNotifications } = useNotifications();
-  const { width, height } = useWindowSize(); // Pobierz rozmiar okna dla confetti
+  const { width, height } = useWindowSize();
+
+  // GLOBALNY LOADER
+  const setGlobalLoading = useLoadingStore((s) => s.setLoading);
 
   // Funkcja pobierania danych
   const fetchLessonData = useCallback(async () => {
     if (!lessonId) return;
+    let loaderTimeout: NodeJS.Timeout | null = null;
+    loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
+
     try {
       setLoading(true);
       setError(null);
@@ -59,9 +64,8 @@ export default function LessonPage() {
         apiService.lessons.getLesson(lessonId),
         apiService.lessons.getLessonSteps(lessonId),
         apiService.lessons.getLessonProgress(lessonId).catch((err) => {
-          // Ignoruj 404 dla postępu, zwróć null
           if ((err as any)?.response?.status === 404) return null;
-          throw err; // Rzuć inne błędy dalej
+          throw err;
         }),
       ]);
 
@@ -111,9 +115,11 @@ export default function LessonPage() {
           : "Nie udało się pobrać danych lekcji. Spróbuj ponownie."
       );
     } finally {
+      if (loaderTimeout) clearTimeout(loaderTimeout);
+      setGlobalLoading(false);
       setLoading(false);
     }
-  }, [lessonId]);
+  }, [lessonId, setGlobalLoading]);
 
   useEffect(() => {
     fetchLessonData();
@@ -123,9 +129,7 @@ export default function LessonPage() {
   const handleStepAction = async (isCorrect?: boolean) => {
     if (!lesson || steps.length === 0 || isSubmitting || isFinishing) return;
 
-    // Dla quizu, nie przechodź dalej jeśli odpowiedź jest niepoprawna
     if (steps[currentStepIndex].type === "quiz" && isCorrect === false) {
-      // Można tu dodać logikę pokazania błędu/wskazówki w StepRenderer
       return;
     }
 
@@ -135,10 +139,9 @@ export default function LessonPage() {
 
       if (currentStepIndex >= steps.length - 1) {
         setIsSubmitting(false);
-        await completeLesson(); // Przejdź do finalizacji
+        await completeLesson();
       } else {
         setCurrentStepIndex(currentStepIndex + 1);
-        // Zaktualizuj lokalny stan postępu (opcjonalnie)
         setProgress(
           (prev) =>
             ({
@@ -150,7 +153,7 @@ export default function LessonPage() {
       }
     } catch (err) {
       console.error("Error completing step:", err);
-      setError("Wystąpił błąd przy zapisywaniu postępu."); // Ustawiamy błąd na stronie
+      setError("Wystąpił błąd przy zapisywaniu postępu.");
     } finally {
       setIsSubmitting(false);
     }
@@ -165,18 +168,15 @@ export default function LessonPage() {
       const event = new CustomEvent("taskCompleted");
       window.dispatchEvent(event);
 
-      // Pokaż confetti!
       setShowConfetti(true);
-      // Przekieruj po chwili
       setTimeout(() => {
         router.push(`/learning/${moduleId}?completed=${lessonId}`);
-      }, 3000); // Czas na podziwianie confetti
+      }, 3000);
     } catch (error) {
       console.error("Błąd podczas kończenia lekcji:", error);
       setError("Wystąpił błąd podczas finalizowania lekcji.");
-      setIsFinishing(false); // Ukryj spinner, jeśli był błąd
+      setIsFinishing(false);
     }
-    // Nie ukrywaj spinnera tutaj, jeśli jest sukces - przekierowanie go ukryje
   };
 
   const handlePreviousStep = () => {
@@ -242,11 +242,8 @@ export default function LessonPage() {
   const currentStep = steps[currentStepIndex];
   const isLastStep = currentStepIndex === steps.length - 1;
 
-  // === GŁÓWNE RENDEROWANIE ===
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {" "}
-      {/* Ograniczenie szerokości dla czytelności */}
       {/* Confetti na sukces! */}
       {showConfetti && (
         <Confetti
@@ -257,17 +254,16 @@ export default function LessonPage() {
         />
       )}
       {/* Nakładka podczas finalizacji */}
-      {isFinishing &&
-        !showConfetti && ( // Ukryj, gdy confetti jest aktywne
-          <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-400/80 to-emerald-600/90 backdrop-blur-sm flex flex-col items-center justify-center text-white">
-            <Sparkles className="h-16 w-16 mb-4 animate-pulse" />
-            <p className="text-xl font-semibold mb-2">
-              Gratulacje! Lekcja ukończona!
-            </p>
-            <p className="text-sm">Zapisywanie postępu...</p>
-            <Loader2 className="h-6 w-6 animate-spin mt-4" />
-          </div>
-        )}
+      {isFinishing && !showConfetti && (
+        <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-400/80 to-emerald-600/90 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+          <Sparkles className="h-16 w-16 mb-4 animate-pulse" />
+          <p className="text-xl font-semibold mb-2">
+            Gratulacje! Lekcja ukończona!
+          </p>
+          <p className="text-sm">Zapisywanie postępu...</p>
+          <Loader2 className="h-6 w-6 animate-spin mt-4" />
+        </div>
+      )}
       {/* Przycisk powrotu */}
       <Button
         variant="ghost"
@@ -301,7 +297,6 @@ export default function LessonPage() {
       <Card className="mb-6 shadow-lg border dark:border-gray-700">
         {currentStep ? (
           <CardContent className="p-6 md:p-8">
-            {/* Opcjonalny tytuł kroku, jeśli istnieje */}
             {currentStep.title && (
               <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-gray-700">
                 {currentStep.title}
@@ -309,9 +304,9 @@ export default function LessonPage() {
             )}
             <StepRenderer
               step={currentStep}
-              onComplete={(isCorrect) => handleStepAction(isCorrect)} // Przekazujemy wynik quizu
+              onComplete={(isCorrect) => handleStepAction(isCorrect)}
               isLoading={isSubmitting}
-              key={currentStep.id} // Dodano key dla pewności re-renderowania
+              key={currentStep.id}
             />
           </CardContent>
         ) : (
@@ -331,12 +326,9 @@ export default function LessonPage() {
         >
           <ChevronLeft className="mr-2 h-5 w-5" /> Poprzedni
         </Button>
-
-        {/* Użyj onComplete z StepRenderer zamiast tego przycisku, jeśli StepRenderer ma własny przycisk */}
-        {/* Jeśli StepRenderer NIE MA własnego przycisku akcji: */}
-        {currentStep && ( // Pokaż przycisk, jeśli currentStep istnieje
+        {currentStep && (
           <LoadingButton
-            onClick={() => handleStepAction()} // Wywołaj bez argumentu dla kroków innych niż quiz
+            onClick={() => handleStepAction()}
             isLoading={isSubmitting}
             disabled={isFinishing}
             size="lg"
@@ -346,21 +338,6 @@ export default function LessonPage() {
             <ChevronRight className="ml-2 h-5 w-5" />
           </LoadingButton>
         )}
-        {/* Jeśli jest ostatni krok i *wymaga* akcji (np. quiz), przycisk Zakończ może być w StepRenderer */}
-        {/* Alternatywnie, ZAWSZE pokazuj przycisk, a StepRenderer tylko zwraca wynik */}
-        {/* Poniżej wersja, która ZAWSZE pokazuje przycisk Dalej/Zakończ, zakładając, że StepRenderer wywoła onComplete */}
-        {/*
-         <LoadingButton
-           onClick={handleStepAction} // StepRenderer musi wywołać onComplete(true/false)
-           isLoading={isSubmitting}
-           disabled={isFinishing || (currentStep?.type === 'quiz' && !stepCompleted)} // Przykład blokady dla quizu
-           size="lg"
-           className="shadow-md bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
-         >
-           {isLastStep ? "Zakończ lekcję" : "Następny krok"}
-           <ChevronRight className="ml-2 h-5 w-5" />
-         </LoadingButton>
-         */}
       </div>
     </div>
   );

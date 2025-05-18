@@ -1,7 +1,4 @@
-import { useError } from "react-use";
 import { useErrorStore } from "../errorStore";
-import { useNotificationStore } from "../notificationStore";
-// Reset store przed każdym testem, by testy nie wpływały na siebie
 
 describe("ErrorStore", () => {
   beforeEach(() => {

@@ -1,7 +1,6 @@
 import { useLoadingStore } from "../loadingStore";
-import { useNotificationStore } from "../notificationStore";
 
-describe("NotificationStore", () => {
+describe("LoadingStore", () => {
   beforeEach(() => {
     useLoadingStore.getState().resetLoading();
   });

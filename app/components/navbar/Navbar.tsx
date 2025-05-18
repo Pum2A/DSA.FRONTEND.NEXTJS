@@ -1,27 +1,20 @@
 "use client";
-import useSWR from "swr";
-import { apiService } from "@/app/lib/api";
-import { NavbarNav } from "./NavbarComponents/NavbarNav";
 import { useState } from "react";
-import { useAuthStore } from "@/app/store/authStore";
 import { useScrolledNavbar } from "./useScrolledNavbar";
 import { useCloseOnPathChange } from "./useCloseOnPathChange";
 import { NavbarLogo } from "./NavbarComponents/NavbarLogo";
+import { NavbarNav } from "./NavbarComponents/NavbarNav";
 import { NavbarUserSection } from "./NavbarComponents/NavbarUserSection";
 import { NavbarMobileMenu } from "./NavbarComponents/NavbarMobileMenu";
-
+import { useAuthStore } from "../../store/authStore";
+import { useCurrentUser } from "../../hooks";
 export function Navbar() {
   const { isAuthenticated, logout } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const scrolled = useScrolledNavbar();
   useCloseOnPathChange(setIsMenuOpen);
 
-  const fetcher = (path: string) => apiService.get(path);
-  const { data: user, isLoading } = useSWR(
-    isAuthenticated ? "Auth/user" : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  );
+  const { data: user, isLoading } = useCurrentUser(isAuthenticated);
 
   return (
     <header
@@ -37,14 +30,7 @@ export function Navbar() {
           <NavbarNav isAuthenticated={isAuthenticated} />
           <NavbarUserSection
             isAuthenticated={isAuthenticated}
-            user={
-              user as {
-                firstName?: string;
-                lastName?: string;
-                userName?: string;
-                level?: number;
-              } | null
-            }
+            user={user}
             isLoading={isLoading}
             logout={logout}
             isMenuOpen={isMenuOpen}
@@ -56,13 +42,7 @@ export function Navbar() {
         isOpen={isMenuOpen}
         setIsOpen={setIsMenuOpen}
         isAuthenticated={isAuthenticated}
-        user={
-          user as {
-            firstName?: string;
-            lastName?: string;
-            userName?: string;
-          } | null
-        }
+        user={user}
         isLoading={isLoading}
         logout={logout}
       />

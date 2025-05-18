@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { apiService } from "@/app/lib/api";
-import { AuthState, RegisterData, User } from "@/app/types/auth";
-import { extractErrorMessage } from "@/app/utils/extractErrorMessage";
+import { apiService } from "../lib/api";
+import { AuthState, RegisterData, User } from "../types/auth";
+import { extractErrorMessage } from "../utils/extractErrorMessage";
 
 /**
  * AuthStore – zarządza logiką logowania, rejestracji, sesji i profilu użytkownika.
