@@ -1,7 +1,5 @@
 "use client";
 
-import { useAuthStore } from "@/app/store/authStore";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -12,17 +10,19 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import { LoadingButton } from "../ui/LoadingButton";
+import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
-import { LoadingButton } from "../ui/LoadingButton";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuthStore } from "../../store/authStore";
+import { useNotificationStore } from "@/app/store/notificationStore";
+import { clear } from "console";
+import { RegisterData } from "../../types/auth";
 
-// Schemat walidacji (bez zmian, ale z lepszymi komunikatami)
 const registerSchema = z
   .object({
     email: z.string().email("Podaj prawidłowy adres email."),
@@ -57,13 +57,12 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const router = useRouter();
-  const {
-    register: registerUser,
-    isAuthenticated,
-    error,
-    isLoading,
-    clearError,
-  } = useAuthStore();
+  const registerUser = useAuthStore((s) => s.register);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const error = useAuthStore((s) => s.error);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const clearError = useAuthStore((s) => s.clearError);
+  const setNotification = useNotificationStore((s) => s.setNotification);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -83,27 +82,37 @@ export function RegisterForm() {
     },
   });
 
-  // Efekty (bez zmian)
+  const { reset } = useForm<RegisterFormValues>();
   useEffect(() => {
     if (isAuthenticated) {
-      toast.success("Rejestracja zakończona sukcesem!", {
-        description: "Witamy w DSA Learning!",
+      reset();
+      setNotification({
+        type: "success",
+        message: "Rejestracja zakończona sukcesem!",
       });
       router.push("/dashboard");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, setNotification]);
 
-  // useEffect(() => { if (error) { toast.error("Błąd rejestracji", { description: error }); } }, [error]);
+  useEffect(() => {
+    if (error) {
+      setNotification({
+        type: "error",
+        message: error,
+      });
+      clearError();
+    }
+  }, [error, setNotification, clearError]);
 
   const onSubmit = async (data: RegisterFormValues) => {
     clearError();
+    const { confirmPassword, ...userData } = data;
+    // Przekazujemy tylko dane użytkownika do rejestracji
     await registerUser(data);
   };
 
   return (
     <Card className="w-full max-w-lg mx-auto shadow-xl border dark:border-gray-700">
-      {" "}
-      {/* Zwiększono max-w */}
       <CardHeader className="text-center">
         <CardTitle className="text-2xl font-bold">Stwórz konto</CardTitle>
         <CardDescription>
@@ -111,14 +120,6 @@ export function RegisterForm() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Błąd rejestracji</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Email */}
           <div className="space-y-1.5">
@@ -138,7 +139,6 @@ export function RegisterForm() {
               <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
           </div>
-
           {/* Nazwa użytkownika */}
           <div className="space-y-1.5">
             <Label htmlFor="userName">Nazwa użytkownika</Label>
@@ -159,8 +159,7 @@ export function RegisterForm() {
               </p>
             )}
           </div>
-
-          {/* Imię i Nazwisko */}
+          {/* Imię i nazwisko */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="firstName">Imię</Label>
@@ -193,7 +192,6 @@ export function RegisterForm() {
               )}
             </div>
           </div>
-
           {/* Hasło */}
           <div className="space-y-1.5">
             <Label htmlFor="password">Hasło</Label>
@@ -225,9 +223,7 @@ export function RegisterForm() {
                 {errors.password.message}
               </p>
             )}
-            {/* Opcjonalnie: wskaźnik siły hasła */}
           </div>
-
           {/* Potwierdź hasło */}
           <div className="space-y-1.5">
             <Label htmlFor="confirmPassword">Potwierdź hasło</Label>
@@ -260,8 +256,7 @@ export function RegisterForm() {
               </p>
             )}
           </div>
-
-          {/* Przycisk Rejestracji */}
+          {/* Przycisk rejestracji */}
           <LoadingButton
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"

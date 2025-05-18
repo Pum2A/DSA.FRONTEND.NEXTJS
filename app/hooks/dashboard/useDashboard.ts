@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/app/store/authStore";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import { useRouter } from "next/navigation";
 import { apiService } from "@/app/lib/api";
 import {
@@ -12,8 +12,8 @@ import {
   processUserActivity,
 } from "@/app/components/utils";
 import { Module, User, UserStats } from "@/app/types";
+import { useNotificationStore } from "@/app/store/notificationStore";
 
-// Hook do logiki dashboardu – wszystko poza renderowaniem!
 export function useDashboard() {
   const {
     isAuthenticated,
@@ -23,11 +23,9 @@ export function useDashboard() {
   const router = useRouter();
   const [state, dispatch] = useReducer(dashboardReducer, initialDashboardState);
 
-  // Przechowuj błąd osobno, by nie renderować dashboardu z error state
-  const error = state.error;
-  const isRefreshing = state.isRefreshing;
+  const setNotification = useNotificationStore((s) => s.setNotification);
 
-  // Przekierowanie jeśli nie jest zalogowany (opcjonalne, jeśli nie masz AuthProvider)
+  // Przekierowanie jeśli nie jest zalogowany (opcjonalne jeśli masz AuthProvider)
   useEffect(() => {
     if (!isLoadingAuth && !isAuthenticated) router.push("/login");
   }, [isAuthenticated, isLoadingAuth, router]);
@@ -118,14 +116,25 @@ export function useDashboard() {
             recommendedPath,
           },
         });
+
+        if (isRefresh) {
+          setNotification({
+            type: "success",
+            message: "Pomyślnie odświeżono dane dashboardu.",
+          });
+        }
       } catch (err) {
         dispatch({
           type: "FETCH_ERROR",
           payload: "Nie udało się pobrać danych. Spróbuj odświeżyć stronę.",
         });
+        setNotification({
+          type: "error",
+          message: "Nie udało się pobrać danych. Spróbuj odświeżyć stronę.",
+        });
       }
     },
-    [isAuthenticated, authUser, fetchModuleProgress]
+    [isAuthenticated, authUser, fetchModuleProgress, setNotification]
   );
 
   // Inicjalne pobieranie danych
@@ -155,7 +164,7 @@ export function useDashboard() {
     isAuthenticated,
     authUser,
     handleRefresh,
-    isRefreshing,
-    error,
+    isRefreshing: state.isRefreshing,
+    error: state.error,
   };
 }

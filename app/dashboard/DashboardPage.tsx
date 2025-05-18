@@ -1,9 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { useDashboard } from "../hooks/dashboard/useDashboard";
+import { RefreshCw } from "lucide-react";
+import { useDashboard } from "@/app/hooks/dashboard/useDashboard";
 import {
   DailyStreakCard,
   ProgressCard,
@@ -19,49 +18,13 @@ export default function DashboardPage() {
     authUser,
     handleRefresh,
     isRefreshing,
-    error,
   } = useDashboard();
 
-  // Loader autoryzacji (początkowy)
-  if (isLoadingAuth) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // Globalny loader zajmuje się ładowaniem – nie renderuj tu lokalnego spinnera!
 
-  // Użytkownik niezalogowany – przekierowanie powinno być już obsłużone przez AuthProvider/Routing
-  if (!isAuthenticated || !authUser) {
-    return null;
-  }
+  // Nie zalogowany – przekierowanie obsługuje AuthProvider lub useDashboard
+  if (!isAuthenticated || !authUser) return null;
 
-  // Loader dashboardu
-  if (state.isLoading && !isRefreshing) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  // Błąd dashboardu
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Alert variant="destructive" className="max-w-md w-full">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Błąd</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-          <Button className="mt-4" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Spróbuj ponownie
-          </Button>
-        </Alert>
-      </div>
-    );
-  }
-
-  // Główna sekcja dashboardu
   return (
     <div className="py-6 md:py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Nagłówek */}

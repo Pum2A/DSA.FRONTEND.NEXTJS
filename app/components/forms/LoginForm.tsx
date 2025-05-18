@@ -1,6 +1,5 @@
 "use client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
 import {
   Card,
   CardContent,
@@ -8,20 +7,20 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"; // Import Card
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label"; // Import Label
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Lock, Mail } from "lucide-react"; // Import ikony
+import { Label } from "@/components/ui/label";
+import { LoadingButton } from "../ui/LoadingButton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuthStore } from "../../store/authStore";
-import { LoadingButton } from "../ui/LoadingButton";
+import { useNotificationStore } from "@/app/store/notificationStore";
 
 const loginSchema = z.object({
   email: z.string().email("Nieprawidłowy format adresu email."),
@@ -35,6 +34,7 @@ export function LoginForm() {
   const router = useRouter();
   const { login, isAuthenticated, error, isLoading, clearError } =
     useAuthStore();
+  const setNotification = useNotificationStore((s) => s.setNotification);
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -46,49 +46,39 @@ export function LoginForm() {
     defaultValues: { email: "", password: "", rememberMe: false },
   });
 
-  // Efekty (bez zmian, ale toast jest dobrym feedbackiem)
   useEffect(() => {
     if (isAuthenticated) {
-      toast.success("Zalogowano pomyślnie!", {
-        description: "Witamy ponownie w DSA Learning!",
+      setNotification({
+        type: "success",
+        message: "Zalogowano pomyślnie!",
       });
       router.push("/dashboard");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, setNotification]);
 
-  // Używamy alertu zamiast toast dla błędu bezpośrednio w formularzu
-  // useEffect(() => {
-  //   if (error) {
-  //     toast.error("Błąd logowania", { description: error });
-  //     // clearError(); // Nie czyść od razu, aby użytkownik widział błąd
-  //   }
-  // }, [error, clearError]);
+  useEffect(() => {
+    if (error) {
+      setNotification({
+        type: "error",
+        message: error,
+      });
+    }
+  }, [error, setNotification]);
 
   const onSubmit = async (data: LoginFormValues) => {
-    clearError(); // Wyczyść stary błąd przed próbą logowania
+    clearError();
     await login(data.email, data.password);
   };
 
   return (
-    // Używamy Card dla spójności
     <Card className="w-full max-w-md mx-auto shadow-xl border dark:border-gray-700">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl font-bold">Zaloguj się</CardTitle>
         <CardDescription>Kontynuuj swoją podróż z DSA Learning</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Lepszy Alert dla błędów */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Błąd logowania</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-            {/* <Button variant="link" size="sm" onClick={clearError} className="p-0 h-auto text-xs mt-1">Zamknij</Button> */}
-          </Alert>
-        )}
-
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Pole Email z ikoną */}
+          {/* Email */}
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
             <div className="relative">
@@ -98,7 +88,7 @@ export function LoginForm() {
                 type="email"
                 {...register("email")}
                 placeholder="twoj@email.com"
-                className="pl-10" // Dodaj padding dla ikony
+                className="pl-10"
                 aria-invalid={errors.email ? "true" : "false"}
               />
             </div>
@@ -106,8 +96,7 @@ export function LoginForm() {
               <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
           </div>
-
-          {/* Pole Hasło z ikoną i przełącznikiem widoczności */}
+          {/* Hasło */}
           <div className="space-y-1.5">
             <Label htmlFor="password">Hasło</Label>
             <div className="relative">
@@ -117,7 +106,7 @@ export function LoginForm() {
                 type={showPassword ? "text" : "password"}
                 {...register("password")}
                 placeholder="********"
-                className="pl-10 pr-10" // Padding dla ikon po obu stronach
+                className="pl-10 pr-10"
                 aria-invalid={errors.password ? "true" : "false"}
               />
               <button
@@ -139,8 +128,7 @@ export function LoginForm() {
               </p>
             )}
           </div>
-
-          {/* Remember Me i Zapomniałeś hasła? */}
+          {/* Remember Me i link do resetu */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Checkbox id="rememberMe" {...register("rememberMe")} />
@@ -158,8 +146,7 @@ export function LoginForm() {
               Zapomniałeś hasła?
             </Link>
           </div>
-
-          {/* Przycisk Logowania z LoadingButton */}
+          {/* Przycisk logowania */}
           <LoadingButton
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"

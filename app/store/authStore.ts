@@ -1,17 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { apiService } from "../lib/api";
-import { AuthState, RegisterData, User } from "../types/auth";
-import { extractErrorMessage } from "../utils/extractErrorMessage";
+import { apiService } from "@/app/lib/api";
+import { AuthState, RegisterData, User } from "@/app/types/auth";
+import { extractErrorMessage } from "@/app/utils/extractErrorMessage";
 
 /**
- * AuthStore – centralny magazyn stanu do obsługi logowania, rejestracji, sesji i profilu usera
- * - Możesz go użyć w dowolnym miejscu przez: useAuthStore((state) => state.coś)
- * - Zawiera pełny cycle: login, register, logout, checkAuthStatus, updateUser, clearError
- * - Stan jest zapamiętywany w localStorage (persist), więc user nie jest wylogowywany po refreshu (jeśli chcesz!)
+ * AuthStore – zarządza logiką logowania, rejestracji, sesji i profilu użytkownika.
+ * - Użycie: const { login, user, ... } = useAuthStore();
+ * - Przechowuje tylko user i isAuthenticated w localStorage (persist).
+ * - Stan error, loading: tylko tymczasowo, nie zapisywane.
+ * - Akcje są asynchroniczne, zawsze czyść error po obsłudze!
  */
 
-// Domyślny user – dla bezpieczeństwa
+// Domyślny user (opcjonalnie, do typowania/placeholdera)
 const defaultUser: User = {
   id: "",
   userName: "",
@@ -32,12 +33,12 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      // Akcja: logowanie użytkownika
-      async login(email, password) {
+      /** Logowanie użytkownika */
+      async login(email: string, password: string) {
         set({ isLoading: true, error: null });
         try {
           await apiService.auth.login({ email, password });
-          await get().checkAuthStatus(); // Pobierz dane usera po zalogowaniu
+          await get().checkAuthStatus();
         } catch (error: any) {
           set({
             isLoading: false,
@@ -51,8 +52,8 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Akcja: rejestracja użytkownika
-      async register(registerData) {
+      /** Rejestracja użytkownika */
+      async register(registerData: RegisterData) {
         set({ isLoading: true, error: null });
         try {
           await apiService.auth.register(registerData);
@@ -70,14 +71,13 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Akcja: wylogowanie użytkownika
+      /** Wylogowanie użytkownika */
       async logout() {
         set({ isLoading: true });
         try {
           await apiService.auth.logout();
         } catch (error) {
-          // Niezależnie od błędu, czyść stan lokalny!
-          // (np. utracone połączenie z backendem, backend już wylogował usera)
+          // Ignoruj błąd (np. backend już wylogował usera)
         } finally {
           set({
             user: null,
@@ -88,7 +88,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Akcja: sprawdzanie statusu autoryzacji (np. na starcie aplikacji)
+      /** Sprawdzenie statusu autoryzacji (na starcie appki lub po logowaniu) */
       async checkAuthStatus() {
         if (!get().isLoading) set({ isLoading: true });
         set({ error: null });
@@ -113,14 +113,13 @@ export const useAuthStore = create<AuthState>()(
           } else {
             set({ user: null, isAuthenticated: false, isLoading: false });
           }
-        } catch (error: any) {
-          // Błąd = user nie jest zalogowany (np. 401)
+        } catch {
           set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },
 
-      // Akcja: aktualizacja usera (np. zmiana profilu)
-      async updateUser(updatedFields) {
+      /** Aktualizacja danych użytkownika (np. profil) */
+      async updateUser(updatedFields: Partial<User>) {
         if (!get().user) return false;
         set({ isLoading: true, error: null });
         try {
@@ -142,19 +141,28 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Akcja: czyść error (np. po zamknięciu okienka z błędem)
+      /** Czyści error (np. po zamknięciu powiadomienia/toasta) */
       clearError() {
         set({ error: null });
       },
+
+      /** Resetuje CAŁY store do wartości początkowych (np. po wylogowaniu globalnym) */
+      reset() {
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+        });
+      },
     }),
     {
-      name: "auth-storage", // Klucz localStorage
+      name: "auth-storage",
       partialize: (state) => ({
-        // Trzymaj tylko te pola pomiędzy odświeżeniami
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
-      // Możesz dodać migrate, serialize/deserialize itd.
+      // Możesz dodać migrate, serialize/deserialize itp.
     }
   )
 );

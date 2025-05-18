@@ -6,6 +6,8 @@ import { Navbar } from "./components/ui/Navbar";
 import "./globals.css";
 import { AuthProvider } from "./providers/AuthProvider";
 import GlobalLoader from "./components/ui/GlobalLoader";
+import { GlobalErrorToast } from "./components/ui/GlobalErrorToast";
+import { GlobalToast } from "./components/ui/GlobalToast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -26,6 +28,8 @@ export default function RootLayout({
           <Navbar />
           <Analytics />
           <GlobalLoader />
+          <GlobalErrorToast />
+          <GlobalToast />
 
           <main className="min-h-screen bg-gray-50">{children}</main>
           <footer className="bg-gray-800 text-white py-6">
