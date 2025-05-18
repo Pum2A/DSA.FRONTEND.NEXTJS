@@ -26,6 +26,7 @@ const defaultUser: User = {
 };
 
 export const useAuthStore = create<AuthState>()(
+  // persist dodaje to wszystko potem do LocalStorage i jest jako token, przy logout sie to czysci
   persist(
     (set, get) => ({
       user: null,

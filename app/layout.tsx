@@ -2,12 +2,12 @@ import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
-import { Navbar } from "./components/ui/Navbar";
+import { Navbar } from "./components/navbar/Navbar";
 import "./globals.css";
 import { AuthProvider } from "./providers/AuthProvider";
-import GlobalLoader from "./components/ui/GlobalLoader";
-import { GlobalErrorToast } from "./components/ui/GlobalErrorToast";
-import { GlobalToast } from "./components/ui/GlobalToast";
+import GlobalLoader from "./components/global/GlobalLoader";
+import { GlobalErrorToast } from "./components/global/GlobalErrorToast";
+import { GlobalToast } from "./components/global/GlobalToast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
