@@ -27,6 +27,7 @@ export interface AuthState {
   updateUser: (updatedUser: User) => Promise<boolean>;
   checkAuthStatus: () => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export interface LoginData {
