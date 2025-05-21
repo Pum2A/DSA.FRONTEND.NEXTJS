@@ -1,4 +1,4 @@
-// Stwórz centralną definicję User używaną we wszystkich miejscach
+// Centralna definicja User używana we wszystkich miejscach
 export interface User {
   id: string;
   userName: string;
@@ -9,16 +9,10 @@ export interface User {
   level: number;
   roles?: string[];
   joinedAt?: string;
-  streak?: number; // Dodaj opcjonalnie dla kompatybilności
+  streak?: number;
 }
 
-// Eksportuj typy specyficzne dla auth, ale bazujące na głównym User
+// Eksportuj typy specyficzne dla auth
 export type AuthUser = User;
 
-// Eksportuj typy specyficzne dla player, ale bazujące na głównym User
-export type Player = Pick<
-  User,
-  "id" | "firstName" | "lastName" | "userName" | "level" | "joinedAt"
-> & {
-  streak?: number;
-};
+// Eksportuj typy specyficzne dla player

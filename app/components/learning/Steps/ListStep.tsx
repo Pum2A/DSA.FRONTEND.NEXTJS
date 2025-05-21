@@ -1,35 +1,39 @@
-import { Step } from "@/app/types";
+import { ListItem, Step } from "@/app/types";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"; // Shadcn Accordion
+} from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
-// Propsy już nie zawierają onComplete ani isLoading
 interface ListStepProps {
   step: Step;
+  onComplete?: () => void;
 }
 
-export default function ListStep({ step }: ListStepProps) {
-  // Użyj pustej tablicy, jeśli items nie istnieje
-  const items = step.items || [];
+export default function ListStep({ step, onComplete }: ListStepProps) {
+  const [hasRead, setHasRead] = useState(false);
+
+  // Pobierz elementy z step.items lub step.interactiveData?.items
+  const listData = step.interactiveData || {};
+  const items: ListItem[] = step.items || listData.items || [];
+
+  useEffect(() => {
+    const timer = setTimeout(() => setHasRead(true), 10000);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   return (
     <div className="list-step space-y-4">
-      {/* Tytuł kroku, jeśli istnieje */}
-      {step.title && (
-        <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
-          {step.title}
-        </h2>
-      )}
-
-      {/* Opcjonalna treść wstępna */}
+      {step.title && <h2 className="text-2xl font-semibold">{step.title}</h2>}
       {step.content && (
-        <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+        <div className="prose prose-lg max-w-none dark:prose-invert">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw]}
@@ -38,22 +42,19 @@ export default function ListStep({ step }: ListStepProps) {
           </ReactMarkdown>
         </div>
       )}
-
-      {/* Lista jako Accordion */}
       {items.length > 0 ? (
         <Accordion type="multiple" className="w-full space-y-3">
           {items.map((item, index) => (
             <AccordionItem
               value={`item-${item.id || index}`}
               key={item.id || index}
-              className="border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
+              className="border rounded-lg bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
             >
-              <AccordionTrigger className="px-4 py-3 text-left hover:no-underline text-base font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <AccordionTrigger className="px-4 py-3 text-left hover:no-underline text-base font-medium">
                 {item.text}
               </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4 pt-0 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                {/* Użyj ReactMarkdown dla opisu, jeśli może zawierać formatowanie */}
-                <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 pt-3">
+              <AccordionContent className="px-4 pb-4 pt-0 border-t bg-gray-50 dark:bg-gray-700/50">
+                <div className="prose prose-sm max-w-none pt-3 dark:prose-invert">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeRaw]}
@@ -66,12 +67,18 @@ export default function ListStep({ step }: ListStepProps) {
           ))}
         </Accordion>
       ) : (
-        <p className="text-gray-500 dark:text-gray-400 italic">
+        <p className="text-gray-500 italic">
           Brak elementów listy do wyświetlenia.
         </p>
       )}
 
-      {/* Przycisk "Rozumiem" został usunięty */}
+      {onComplete && (
+        <div className="flex justify-end pt-4">
+          <Button onClick={onComplete} className="mt-4" disabled={!hasRead}>
+            Kontynuuj <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

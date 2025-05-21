@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  AlertCircle,
-  ArrowLeft,
-  RefreshCcw,
-  PackageX,
-  BookOpen,
-} from "lucide-react";
-import { Module, Lesson, UserProgress } from "@/app/types";
-import { apiService } from "@/app/lib/api";
 import LessonCard, {
   LessonCardSkeleton,
 } from "@/app/components/learning/LessonCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { demoModules, demoProgress } from "@/app/demo/demoData";
+import { apiService } from "@/app/lib/api";
+import { useDemoStore } from "@/app/store/demoStore";
 import { useLoadingStore } from "@/app/store/loadingStore";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  PackageX,
+  RefreshCcw,
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { LessonProgress, Module } from "../../types";
 
-// Funkcja do wyboru ikony modułu (przykładowa)
 function getModuleIcon(module: Module | null) {
   if (!module || !module.icon) return null;
   switch (module.icon) {
@@ -37,14 +38,14 @@ export default function ModulePage() {
   const router = useRouter();
   const [module, setModule] = useState<Module | null>(null);
   const [lessonProgress, setLessonProgress] = useState<
-    Record<string, UserProgress>
+    Record<string, LessonProgress>
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const setGlobalLoading = useLoadingStore((s) => s.setLoading);
+  const isDemo = useDemoStore((s) => s.isDemo);
 
   const fetchModuleData = useCallback(async () => {
-    if (!moduleId) return;
     let loaderTimeout: NodeJS.Timeout | null = null;
     loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
 
@@ -52,9 +53,24 @@ export default function ModulePage() {
       setLoading(true);
       setError(null);
 
-      const moduleData = (await apiService.lessons.getModule(
-        moduleId
-      )) as Module;
+      if (isDemo) {
+        const moduleData = demoModules.find(
+          (m) => m.externalId === moduleId || String(m.id) === moduleId
+        );
+        if (!moduleData) throw new Error("Module not found");
+        setModule(moduleData);
+
+        const progressMap: Record<string, any> = {};
+        (moduleData.lessons || []).forEach((lesson) => {
+          if (lesson.externalId && demoProgress[lesson.externalId]) {
+            progressMap[lesson.externalId] = demoProgress[lesson.externalId];
+          }
+        });
+        setLessonProgress(progressMap);
+        return;
+      }
+
+      const moduleData = await apiService.lessons.getModule(moduleId);
       if (!moduleData) throw new Error("Module not found");
       if (!moduleData.lessons) moduleData.lessons = [];
 
@@ -70,7 +86,7 @@ export default function ModulePage() {
             );
             return {
               lessonExternalId: lesson.externalId,
-              progress: progress as UserProgress,
+              progress,
             };
           } catch (err) {
             if ((err as any)?.response?.status !== 404) {
@@ -84,10 +100,11 @@ export default function ModulePage() {
         });
 
         const progressResults = await Promise.all(progressPromises);
-        const progressMap: Record<string, UserProgress> = {};
+        const progressMap: Record<string, LessonProgress> = {};
         progressResults.forEach((result) => {
           if (result.progress && result.lessonExternalId) {
-            progressMap[result.lessonExternalId] = result.progress;
+            progressMap[result.lessonExternalId] =
+              result.progress as LessonProgress;
           }
         });
         setLessonProgress(progressMap);
@@ -106,13 +123,12 @@ export default function ModulePage() {
       setGlobalLoading(false);
       setLoading(false);
     }
-  }, [moduleId, setGlobalLoading]);
+  }, [moduleId, setGlobalLoading, isDemo]);
 
   useEffect(() => {
     fetchModuleData();
   }, [fetchModuleData]);
 
-  // === Stan ładowania (tylko lokalny, globalny overlay i tak działa) ===
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-10 sm:py-16 animate-pulse">
@@ -199,6 +215,25 @@ export default function ModulePage() {
           <p className="text-gray-600 dark:text-gray-400 text-base">
             {module.description}
           </p>
+
+          {/* Wyświetlanie listy wymagań wstępnych modułu */}
+          {module.prerequisites && module.prerequisites.length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Wymagania wstępne:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {module.prerequisites.map((prereq, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300"
+                  >
+                    {prereq}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -208,21 +243,29 @@ export default function ModulePage() {
       {sortedLessons.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedLessons.map((lesson, index) => {
-            const progress = lessonProgress[lesson.externalId];
+            const progress = lesson.externalId
+              ? lessonProgress[lesson.externalId]
+              : undefined;
+
             const isCompleted = progress?.isCompleted || false;
             const isInProgress = progress && !isCompleted;
             const isLocked =
               !isCompleted &&
               !isInProgress &&
               index > 0 &&
-              !lessonProgress[sortedLessons[index - 1]?.externalId]
-                ?.isCompleted;
+              !(
+                sortedLessons[index - 1] &&
+                typeof sortedLessons[index - 1].externalId !== "undefined" &&
+                sortedLessons[index - 1].externalId &&
+                lessonProgress[sortedLessons[index - 1].externalId as string]
+                  ?.isCompleted
+              );
 
             return (
               <LessonCard
                 key={lesson.externalId || lesson.id}
                 lesson={lesson}
-                moduleExternalId={module.externalId}
+                moduleExternalId={module.externalId ?? ""}
                 completed={isCompleted}
                 inProgress={isInProgress}
                 isLocked={isLocked}

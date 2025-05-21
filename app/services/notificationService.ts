@@ -1,19 +1,23 @@
 import { apiService } from "../lib/api";
-
-export type Notification = {
-  id: string;
-  message: string;
-  createdAt: string;
-  isRead: boolean;
-  type: "achievement" | "level-up" | "general";
-};
+import { Notification } from "../types";
 
 export const notificationService = {
   getAll: async (): Promise<Notification[]> => {
-    return await apiService.get("/notification");
+    const apiNotifications = await apiService.notifications.getAll();
+    // Map or cast each notification to your local Notification type
+    return apiNotifications.map(
+      (n: any) =>
+        ({
+          id: n.id,
+          type: n.type,
+          message: n.message,
+          createdAt: n.createdAt,
+          // add other properties if needed
+        } as Notification)
+    );
   },
 
   markAsRead: async (notificationId: string): Promise<void> => {
-    await apiService.post(`/notification/${notificationId}/mark-as-read`);
+    await apiService.notifications.markAsRead(notificationId);
   },
 };

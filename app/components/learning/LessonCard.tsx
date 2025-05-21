@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Lesson } from "@/app/types";
 import {
   Card,
@@ -7,25 +6,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils"; // Zaimportuj cn (lub odpowiednik) do łączenia klas
-import {
-  CheckCircle,
-  Loader2,
-  Lock,
-  Clock,
-  Star,
-  ArrowRight,
-  X,
-} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { ArrowRight, CheckCircle, Clock, Lock, Star, X } from "lucide-react";
+import Link from "next/link";
 
 interface LessonCardProps {
   lesson: Lesson;
   moduleExternalId: string;
   completed?: boolean;
   inProgress?: boolean;
-  isLocked?: boolean; // Dodajmy stan zablokowania
-  index?: number; // Dla animacji
+  isLocked?: boolean;
+  index?: number;
 }
 
 export default function LessonCard({
@@ -33,7 +25,7 @@ export default function LessonCard({
   moduleExternalId,
   completed = false,
   inProgress = false,
-  isLocked = false, // Domyślnie odblokowana
+  isLocked = false,
   index = 0,
 }: LessonCardProps) {
   const statusIcon = completed ? (
@@ -43,7 +35,6 @@ export default function LessonCard({
   ) : isLocked ? (
     <Lock className="h-5 w-5 text-gray-400" />
   ) : (
-    // Domyślna ikona dla lekcji do rozpoczęcia (można zmienić)
     <div className="h-5 w-5 rounded-full border-2 border-gray-400"></div>
   );
 
@@ -52,8 +43,10 @@ export default function LessonCard({
     isLocked
       ? "bg-gray-50 dark:bg-gray-800/50 opacity-70 cursor-not-allowed"
       : "bg-white dark:bg-gray-800 hover:shadow-lg hover:-translate-y-1 group"
-    // Usunięto bezpośrednie tło dla completed/inProgress, użyjemy ikon i odznak
   );
+
+  const hasRequiredSkills =
+    lesson.requiredSkills && lesson.requiredSkills.length > 0;
 
   const content = (
     <Card className={cardClasses}>
@@ -68,7 +61,6 @@ export default function LessonCard({
         >
           {lesson.title}
         </CardTitle>
-        {/* Ikona statusu */}
         <div className="flex-shrink-0 ml-2">{statusIcon}</div>
       </CardHeader>
       <CardContent className="px-4 pb-3 flex-grow">
@@ -80,6 +72,19 @@ export default function LessonCard({
         >
           {lesson.description}
         </p>
+
+        {hasRequiredSkills && !isLocked && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {lesson.requiredSkills.map((skill, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
+        )}
       </CardContent>
       <CardFooter className="px-4 pb-4 pt-1 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1">
@@ -90,7 +95,6 @@ export default function LessonCard({
           <Star className="w-3 h-3" />
           <span>{lesson.xpReward} XP</span>
         </div>
-        {/* Wskaźnik "Przejdź" na hover dla odblokowanych */}
         {!isLocked && (
           <ArrowRight className="w-4 h-4 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300 group-hover:translate-x-0.5" />
         )}
@@ -98,16 +102,14 @@ export default function LessonCard({
     </Card>
   );
 
-  // Jeśli lekcja jest zablokowana, renderuj div zamiast linku
   if (isLocked) {
     return <div className="block h-full">{content}</div>;
   }
 
-  // W przeciwnym razie, renderuj link
   return (
     <Link
-      href={`/learning/${moduleExternalId}/${lesson.externalId}`}
-      className="block h-full group" // Dodano h-full, aby link wypełniał kontener siatki
+      href={`/learning/${moduleExternalId}/${lesson.externalId || lesson.id}`}
+      className="block h-full group"
       passHref
     >
       {content}
@@ -115,7 +117,6 @@ export default function LessonCard({
   );
 }
 
-// Szkielet dla LessonCard
 export function LessonCardSkeleton() {
   return (
     <Card className="flex flex-col h-full border dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">

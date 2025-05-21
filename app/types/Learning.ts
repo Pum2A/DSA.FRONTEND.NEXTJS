@@ -1,50 +1,6 @@
-// ================== TYPY UŻYTKOWNIKA ==================
-export interface User {
-  id: string;
-  userName: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  experiencePoints: number;
-  level: number;
-  roles?: string[];
-  joinedAt?: string;
-  streak?: number;
-}
+// ================== PODSTAWOWE TYPY EDUKACYJNE ==================
 
-export type UserUpdate = Partial<User> & { id: string };
-
-export interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUser: (updatedUser: User) => Promise<boolean>;
-  checkAuthStatus: () => Promise<void>;
-  clearError: () => void;
-  reset: () => void;
-}
-
-export interface LoginData {
-  email: string;
-  password: string;
-  rememberMe?: boolean;
-}
-
-export interface RegisterData {
-  email: string;
-  password: string;
-  confirmPassword: string;
-  firstName: string;
-  lastName: string;
-  userName: string;
-}
-
-// ================== TYPY EDUKACYJNE ==================
-
+// Test case dla kroków coding/interaktywnych
 export interface TestCase {
   id: string;
   input: string;
@@ -53,18 +9,21 @@ export interface TestCase {
   isHidden?: boolean;
 }
 
+// Opcja quizu
 export interface QuizOption {
-  id: string;
+  id: string; // TYLKO string!
   text: string;
   isCorrect?: boolean;
 }
 
+// Element listy
 export interface ListItem {
   id: string;
   text: string;
   description?: string;
 }
 
+// Wynik pojedynczego testu
 export interface TestResult {
   id: string;
   status: "pass" | "fail" | "error";
@@ -74,6 +33,7 @@ export interface TestResult {
   error: string | null;
 }
 
+// Dane quizu
 export interface QuizData {
   question: string;
   options: QuizOption[];
@@ -81,6 +41,7 @@ export interface QuizData {
   explanation?: string;
 }
 
+// Dane interaktywne
 export interface InteractiveData {
   items?: ListItem[];
   testCases?: TestCase[];
@@ -88,6 +49,7 @@ export interface InteractiveData {
   expectedOrder?: string;
 }
 
+// Coding/Challenge data
 export interface ChallengeData {
   initialCode?: string;
   testCases?: TestCase[];
@@ -96,6 +58,7 @@ export interface ChallengeData {
   solution?: string;
 }
 
+// Dane wideo
 export interface VideoData {
   url?: string;
   duration?: number;
@@ -103,6 +66,7 @@ export interface VideoData {
   chapters?: string[];
 }
 
+// Typy kroków lekcji
 export type StepType =
   | "text"
   | "image"
@@ -112,11 +76,12 @@ export type StepType =
   | "interactive"
   | "challenge"
   | "video"
-  // Dodaj te typy z backendu
+  // Dodaj typy backendu
   | "theory"
   | "visualization"
   | "coding";
 
+// Główna definicja kroku lekcji
 export interface Step {
   id: number;
   lessonId: number;
@@ -127,18 +92,26 @@ export interface Step {
   code?: string;
   language?: string;
   imageUrl?: string;
+
+  // Quiz
   question?: string;
   options?: QuizOption[];
   correctAnswer?: string;
   explanation?: string;
+
+  // Interaktywne
   items?: ListItem[];
   initialCode?: string;
   testCases?: TestCase[];
   hint?: string;
   solution?: string;
+
+  // Wideo
   videoUrl?: string;
   duration?: number;
   requireFullWatch?: boolean;
+
+  // Mocno typowane dane dodatkowe
   additionalData?: string;
   quizData?: QuizData;
   interactiveData?: InteractiveData;
@@ -146,6 +119,7 @@ export interface Step {
   videoData?: VideoData;
 }
 
+// Lekcja
 export interface Lesson {
   id: number;
   externalId: string;
@@ -158,6 +132,7 @@ export interface Lesson {
   steps: Step[];
 }
 
+// Moduł
 export interface Module {
   id: number;
   externalId: string;
@@ -173,6 +148,7 @@ export interface Module {
   difficulty?: string;
 }
 
+// Progres użytkownika w lekcji
 export interface LessonProgress {
   lessonId: string;
   completedSteps: number;
@@ -181,9 +157,9 @@ export interface LessonProgress {
   lastActivityDate?: string;
   completionPercentage: number;
   earnedXP: number;
-  // UWAGA: currentStepIndex NIE należy do tego typu!
 }
 
+// Progres w module
 export interface ModuleProgress {
   totalLessons: number;
   completedLessons: number;
@@ -193,6 +169,7 @@ export interface ModuleProgress {
   completionPercentage: number;
 }
 
+// Dane dla ukończenia kroku
 export interface StepCompletionData {
   isCorrect?: boolean;
   answer?: any;
@@ -201,83 +178,4 @@ export interface StepCompletionData {
   testsPassed?: number;
   totalTests?: number;
   completionStatus?: boolean;
-}
-
-// ================== DODATKOWE TYPY SYSTEMOWE ==================
-export interface Notification {
-  id: string;
-  type: "info" | "success" | "warning" | "error" | string;
-  title?: string;
-  message: string;
-  createdAt: string;
-  isRead?: boolean;
-  icon?: string;
-  url?: string;
-}
-
-export interface Player {
-  id: string;
-  firstName: string;
-  lastName: string;
-  userName: string;
-  level?: number;
-  streak?: number;
-  joinedAt?: string;
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  success: boolean;
-  message?: string;
-}
-
-export interface ErrorResponse {
-  success: boolean;
-  message: string;
-  errors?: Record<string, string[]>;
-}
-
-export interface LessonRecommendation {
-  lessonId: string;
-  title: string;
-  description: string;
-  relevanceScore: number;
-  recommendationType: string;
-  moduleId: string;
-  moduleTitle: string;
-}
-
-export interface StepVerificationResult {
-  isCorrect: boolean;
-  feedback: string;
-  nextStep?: number;
-}
-
-export interface UserLearningStats {
-  totalLessonsCompleted: number;
-  totalXPEarned: number;
-  currentLevel: number;
-  xpToNextLevel: number;
-  averageCompletionRate: number;
-  totalLearningTime: string;
-  completedLessonsByType: Record<string, number>;
-}
-
-export interface RecentActivity {
-  activityType: string;
-  description: string;
-  timestamp: string;
-  xpEarned: number;
-  relatedContent?: string;
-}
-
-export interface LearningPath {
-  id: string;
-  title: string;
-  description: string;
-  progress: number;
-  completedLessons: number;
-  totalLessons: number;
-  icon?: string;
-  iconColor?: string;
 }

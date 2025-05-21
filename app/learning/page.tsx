@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { demoModules } from "@/app/demo/demoData";
+import { apiService } from "@/app/lib/api";
+import { useDemoStore } from "@/app/store/demoStore";
+import { useLoadingStore } from "@/app/store/loadingStore";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, BookHeart, PackageX, RefreshCcw } from "lucide-react";
-import { Module } from "../types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiService } from "../lib/api";
+import { AlertCircle, BookHeart, PackageX, RefreshCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ModuleCard, {
   ModuleCardSkeleton,
 } from "../components/learning/ModuleCard";
-import { useLoadingStore } from "@/app/store/loadingStore";
+import { Module } from "../types";
 
 export default function LearningPage() {
   const [modules, setModules] = useState<Module[]>([]);
@@ -19,9 +21,17 @@ export default function LearningPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const setGlobalLoading = useLoadingStore((s) => s.setLoading);
+  const isDemo = useDemoStore((s) => s.isDemo);
 
   const fetchModules = useCallback(async () => {
-    // Delayed loader to avoid flickering on fast API
+    if (isDemo) {
+      setModules(demoModules);
+      setLoading(false);
+      setError(null);
+      setGlobalLoading(false);
+      return;
+    }
+
     let loaderTimeout: NodeJS.Timeout | null = null;
     loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
 
@@ -34,7 +44,7 @@ export default function LearningPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.lessons.getAllModules(); // Add { signal: controller.signal } if possible
+      const data = await apiService.lessons.getAllModules();
       const sortedData = [...(data as Module[])].sort(
         (a, b) => a.order - b.order
       );
@@ -47,7 +57,7 @@ export default function LearningPage() {
       setGlobalLoading(false);
       setLoading(false);
     }
-  }, [setGlobalLoading]);
+  }, [setGlobalLoading, isDemo]);
 
   useEffect(() => {
     fetchModules();

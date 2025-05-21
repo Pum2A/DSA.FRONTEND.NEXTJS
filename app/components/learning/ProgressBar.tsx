@@ -9,7 +9,6 @@ export default function ProgressBar({
 }: ProgressBarProps) {
   const progress =
     totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
-
   return (
     <div className="w-full my-4">
       <div className="flex justify-between mb-1 text-sm">

@@ -3,14 +3,14 @@ import { Module, ModuleProgress } from "../types";
 
 export const moduleService = {
   getAllModules: (): Promise<Module[]> => {
-    return apiService.get("/lessons/modules");
+    return apiService.lessons.getAllModules();
   },
 
   getModuleById: (moduleId: string): Promise<Module> => {
-    return apiService.get(`/lessons/modules/${moduleId}`);
+    return apiService.lessons.getModule(moduleId);
   },
 
   getModuleProgress: (moduleId: string): Promise<ModuleProgress> => {
-    return apiService.get(`/lessons/modules/${moduleId}/progress`);
+    return apiService.lessons.getModuleProgress(moduleId);
   },
 };

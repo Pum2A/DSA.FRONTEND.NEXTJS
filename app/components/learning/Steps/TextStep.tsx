@@ -1,38 +1,41 @@
 import { Step } from "@/app/types";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm"; // Dodaj dla lepszej obsługi markdown (np. tabele)
-import rehypeRaw from "rehype-raw"; // Dodaj dla obsługi HTML w markdown
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
-// Propsy już nie zawierają onComplete ani isLoading
 interface TextStepProps {
   step: Step;
+  onComplete?: () => void;
 }
 
-export default function TextStep({ step }: TextStepProps) {
-  return (
-    <div className="text-step space-y-4">
-      {/* Tytuł kroku, jeśli istnieje */}
-      {step.title && (
-        <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
-          {step.title}
-        </h2>
-      )}
+export default function TextStep({ step, onComplete }: TextStepProps) {
+  const [hasRead, setHasRead] = useState(false);
 
-      {/* Treść markdown */}
-      <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]} // Uważaj na bezpieczeństwo, jeśli markdown pochodzi od użytkowników!
-          // Możesz dodać komponenty do nadpisania stylów, np. dla linków, nagłówków
-          // components={{
-          //   a: ({node, ...props}) => <a className="text-indigo-600 dark:text-indigo-400 hover:underline" {...props} />,
-          // }}
-        >
+  // Po 20 sekundach zakładamy, że użytkownik przeczytał tekst
+  useState(() => {
+    const timeout = setTimeout(() => setHasRead(true), 20000);
+    return () => clearTimeout(timeout);
+  });
+
+  return (
+    <div className="space-y-4">
+      {step.title && <h2 className="text-2xl font-semibold">{step.title}</h2>}
+      <div className="prose prose-lg dark:prose-invert">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
           {step.content || ""}
         </ReactMarkdown>
       </div>
 
-      {/* Przycisk "Kontynuuj" został usunięty - użytkownik użyje globalnego przycisku na LessonPage */}
+      {onComplete && (
+        <div className="flex justify-end pt-4">
+          <Button onClick={onComplete} className="mt-4" disabled={!hasRead}>
+            Kontynuuj <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

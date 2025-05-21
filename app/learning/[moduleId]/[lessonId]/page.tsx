@@ -1,30 +1,36 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import ProgressBar from "@/app/components/learning/ProgressBar";
+import StepRenderer from "@/app/components/learning/StepRenderer";
+import { LoadingButton } from "@/app/components/ui/LoadingButton";
+import {
+  demoCurrentStepIndex,
+  demoModules,
+  demoProgress,
+} from "@/app/demo/demoData";
+import { useNotifications, useUserStats } from "@/app/hooks";
+import { apiService } from "@/app/lib/api";
+import { useDemoStore } from "@/app/store/demoStore";
+import { useLoadingStore } from "@/app/store/loadingStore";
+import { Lesson, LessonProgress, Step, StepCompletionData } from "@/app/types";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertCircle,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Loader2,
   RefreshCcw,
-  ArrowLeft,
   Sparkles,
-  Clock,
   Star,
 } from "lucide-react";
-import { Lesson, Step, UserProgress } from "@/app/types";
-import { apiService } from "@/app/lib/api";
-import StepRenderer from "@/app/components/learning/StepRenderer";
-import ProgressBar from "@/app/components/learning/ProgressBar";
-import { LoadingButton } from "@/app/components/ui/LoadingButton";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Confetti from "react-confetti";
 import { useWindowSize } from "react-use";
-import { useNotifications, useUserStats } from "@/app/hooks";
-import { useLoadingStore } from "@/app/store/loadingStore";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{
@@ -36,7 +42,7 @@ export default function LessonPage() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [progress, setProgress] = useState<LessonProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,69 +52,116 @@ export default function LessonPage() {
   const { refresh: refreshUserStats } = useUserStats();
   const { refresh: refreshNotifications } = useNotifications();
   const { width, height } = useWindowSize();
-
-  // GLOBALNY LOADER
   const setGlobalLoading = useLoadingStore((s) => s.setLoading);
+  const isDemo = useDemoStore((s) => s.isDemo);
 
-  // Funkcja pobierania danych
   const fetchLessonData = useCallback(async () => {
-    if (!lessonId) return;
     let loaderTimeout: NodeJS.Timeout | null = null;
     loaderTimeout = setTimeout(() => setGlobalLoading(true), 200);
+    console.log("🔍 Ładuję lekcję:", { moduleId, lessonId, isDemo });
 
     try {
       setLoading(true);
       setError(null);
 
-      const [lessonData, stepsData, progressData] = await Promise.all([
-        apiService.lessons.getLesson(lessonId),
-        apiService.lessons.getLessonSteps(lessonId),
-        apiService.lessons.getLessonProgress(lessonId).catch((err) => {
-          if ((err as any)?.response?.status === 404) return null;
-          throw err;
-        }),
-      ]);
+      // Poprawione: Rozdziel demo vs. API na bloki if-else
+      if (isDemo) {
+        const module = demoModules.find(
+          (m) => m.externalId === moduleId || String(m.id) === moduleId
+        );
+        console.log("📘 Znaleziony moduł w demo:", module);
 
-      if (!lessonData) throw new Error("Lesson not found");
-      setLesson(lessonData as Lesson);
+        if (!module) throw new Error("Module not found");
 
-      const processedSteps = (stepsData as Step[]).map((step) => {
-        if (step.type === "quiz" && step.additionalData) {
-          try {
-            const quizData =
-              typeof step.additionalData === "string"
-                ? JSON.parse(step.additionalData)
-                : step.additionalData;
-            return {
-              ...step,
-              question: quizData.question || step.question,
-              options: quizData.options || step.options,
-              correctAnswer: quizData.correctAnswer || step.correctAnswer,
-              explanation: quizData.explanation || step.explanation,
-            };
-          } catch (error) {
-            console.error(
-              `Error parsing quiz data for step ${step.id}:`,
-              error
-            );
-            return step;
-          }
+        const lessonData = (module.lessons || []).find(
+          (l) => l.externalId === lessonId || String(l.id) === lessonId
+        );
+        console.log("📝 Znaleziona lekcja w demo:", lessonData);
+        console.log("📋 Kroki lekcji w demo:", lessonData?.steps);
+
+        if (!lessonData) throw new Error("Lesson not found");
+
+        // Ustaw lekcję
+        setLesson(lessonData);
+
+        // Upewnij się, że steps to tablica, posortuj po order
+        const sortedSteps = Array.isArray(lessonData.steps)
+          ? [...lessonData.steps].sort((a, b) => a.order - b.order)
+          : [];
+        console.log("📑 Posortowane kroki w demo:", sortedSteps);
+
+        setSteps(sortedSteps);
+
+        // Weź progress z demo
+        const progressData =
+          lessonData.externalId && demoProgress[lessonData.externalId]
+            ? demoProgress[lessonData.externalId]
+            : null;
+        setProgress(progressData);
+
+        // Ustaw currentStepIndex z demoCurrentStepIndex albo 0
+        if (
+          lessonData.externalId &&
+          demoCurrentStepIndex &&
+          typeof demoCurrentStepIndex[lessonData.externalId] === "number"
+        ) {
+          setCurrentStepIndex(demoCurrentStepIndex[lessonData.externalId]);
+        } else {
+          setCurrentStepIndex(0);
         }
-        return step;
-      });
-      const sortedSteps = [...processedSteps].sort((a, b) => a.order - b.order);
-      setSteps(sortedSteps);
+      } else {
+        // API mode
+        console.log("🌐 Pobieranie danych z API dla:", lessonId);
 
-      setProgress(progressData as UserProgress | null);
-      if (
-        progressData &&
-        typeof (progressData as UserProgress).currentStepIndex === "number" &&
-        (progressData as UserProgress).currentStepIndex > 0
-      ) {
-        setCurrentStepIndex((progressData as UserProgress).currentStepIndex);
+        const [lessonData, stepsData, progressData] = await Promise.all([
+          apiService.lessons.getLesson(lessonId),
+          apiService.lessons.getLessonSteps(lessonId),
+          apiService.lessons.getLessonProgress(lessonId).catch((err) => {
+            if ((err as any)?.response?.status === 404) return null;
+            throw err;
+          }),
+        ]);
+
+        console.log("📦 Dane API:", {
+          lessonData,
+          stepsData: Array.isArray(stepsData)
+            ? `Array[${stepsData.length}]`
+            : stepsData,
+          progressData,
+        });
+
+        if (!lessonData) throw new Error("Lesson not found");
+
+        // Ustaw lekcję
+        setLesson(lessonData as Lesson);
+
+        // Upewnij się, że stepsData to tablica
+        if (!stepsData || !Array.isArray(stepsData)) {
+          console.error("⚠️ stepsData nie jest tablicą:", stepsData);
+          throw new Error("Invalid steps data format");
+        }
+
+        // Posortuj kroki
+        const sortedSteps = [...stepsData]
+          .filter((step) => step !== null && typeof step === "object")
+          .sort((a, b) => a.order - b.order);
+
+        console.log(
+          "📑 Posortowane kroki z API:",
+          sortedSteps.length > 0
+            ? { count: sortedSteps.length, first: sortedSteps[0] }
+            : "Brak kroków"
+        );
+
+        setSteps(sortedSteps);
+
+        // Ustaw progres, jeśli istnieje
+        if (progressData) {
+          setProgress(progressData as LessonProgress);
+        }
       }
     } catch (err: any) {
-      console.error("Error fetching lesson data:", err);
+      console.error("❌ Error fetching lesson data:", err);
       setError(
         err.message === "Lesson not found"
           ? "Nie znaleziono lekcji."
@@ -119,23 +172,54 @@ export default function LessonPage() {
       setGlobalLoading(false);
       setLoading(false);
     }
-  }, [lessonId, setGlobalLoading]);
+  }, [lessonId, moduleId, setGlobalLoading, isDemo]);
+
+  // Po aktualizacji stanów, sprawdź czy dane są poprawne
+  useEffect(() => {
+    console.log("👁️ Stan po aktualizacji:", {
+      lessonTitle: lesson?.title,
+      stepsCount: steps.length,
+      currentStepIndex,
+      hasProgress: !!progress,
+      currentStep: steps[currentStepIndex],
+    });
+  }, [lesson, steps, currentStepIndex, progress]);
 
   useEffect(() => {
     fetchLessonData();
   }, [fetchLessonData]);
 
-  // Obsługa kroku
-  const handleStepAction = async (isCorrect?: boolean) => {
+  const handleStepAction = async (stepCompletionData?: StepCompletionData) => {
     if (!lesson || steps.length === 0 || isSubmitting || isFinishing) return;
 
-    if (steps[currentStepIndex].type === "quiz" && isCorrect === false) {
+    if (
+      steps[currentStepIndex].type === "quiz" &&
+      stepCompletionData?.isCorrect === false
+    ) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await apiService.lessons.completeStep(lessonId, currentStepIndex);
+      if (isDemo) {
+        if (currentStepIndex >= steps.length - 1) {
+          setIsSubmitting(false);
+          await completeLesson();
+        } else {
+          setCurrentStepIndex(currentStepIndex + 1);
+        }
+        return;
+      }
+
+      await apiService.lessons.completeStep(
+        lessonId,
+        currentStepIndex,
+        stepCompletionData || {
+          isCorrect: true,
+          timeSpent: 0,
+          attempts: 1,
+        }
+      );
 
       if (currentStepIndex >= steps.length - 1) {
         setIsSubmitting(false);
@@ -146,9 +230,15 @@ export default function LessonPage() {
           (prev) =>
             ({
               ...prev,
-              currentStepIndex: currentStepIndex + 1,
+              completedSteps: prev?.completedSteps
+                ? prev.completedSteps + 1
+                : 1,
+              totalSteps: steps.length,
               isCompleted: false,
-            } as UserProgress)
+              completionPercentage: Math.round(
+                (((prev?.completedSteps || 0) + 1) / steps.length) * 100
+              ),
+            } as LessonProgress)
         );
       }
     } catch (err) {
@@ -159,16 +249,24 @@ export default function LessonPage() {
     }
   };
 
-  // Kończenie lekcji
   const completeLesson = async () => {
     setIsFinishing(true);
     try {
-      await apiService.lessons.completeLesson(lessonId);
-      await Promise.all([refreshUserStats(), refreshNotifications()]);
-      const event = new CustomEvent("taskCompleted");
-      window.dispatchEvent(event);
+      if (!isDemo) {
+        const result = await apiService.lessons.completeLesson(lessonId);
+
+        if (result && result.xpAwarded) {
+          console.log(`Zdobyto ${result.xpAwarded} XP!`);
+        }
+
+        await Promise.all([refreshUserStats(), refreshNotifications()]);
+
+        const event = new CustomEvent("taskCompleted");
+        window.dispatchEvent(event);
+      }
 
       setShowConfetti(true);
+
       setTimeout(() => {
         router.push(`/learning/${moduleId}?completed=${lessonId}`);
       }, 3000);
@@ -183,7 +281,6 @@ export default function LessonPage() {
     if (currentStepIndex > 0) setCurrentStepIndex(currentStepIndex - 1);
   };
 
-  // === ULEPSZONY STAN ŁADOWANIA ===
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-4xl animate-pulse">
@@ -212,7 +309,6 @@ export default function LessonPage() {
     );
   }
 
-  // === ULEPSZONY STAN BŁĘDU ===
   if (error || !lesson) {
     return (
       <div className="container mx-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-center text-center min-h-[70vh]">
@@ -238,13 +334,64 @@ export default function LessonPage() {
     );
   }
 
-  // Przygotowanie danych kroku
-  const currentStep = steps[currentStepIndex];
+  // Dodana ochrona przed brakiem kroków
+  if (!steps || steps.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-center text-center min-h-[70vh]">
+        <AlertCircle className="h-16 w-16 text-amber-500 mb-6" />
+        <h2 className="text-2xl font-semibold text-amber-800 dark:text-amber-200 mb-3">
+          Brak kroków
+        </h2>
+        <p className="text-amber-600 dark:text-amber-300 mb-8 max-w-md">
+          Ta lekcja nie zawiera żadnych kroków do wykonania.
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/learning/${moduleId}`)}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
+        </Button>
+      </div>
+    );
+  }
+
+  // Bezpieczne pobieranie currentStep z tablicy
+  const currentStep =
+    currentStepIndex >= 0 && currentStepIndex < steps.length
+      ? steps[currentStepIndex]
+      : null;
+
   const isLastStep = currentStepIndex === steps.length - 1;
+
+  // Dodana ochrona przed brakiem currentStep
+  if (!currentStep) {
+    return (
+      <div className="container mx-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-center text-center min-h-[70vh]">
+        <AlertCircle className="h-16 w-16 text-amber-500 mb-6" />
+        <h2 className="text-2xl font-semibold text-amber-800 dark:text-amber-200 mb-3">
+          Błąd kroku
+        </h2>
+        <p className="text-amber-600 dark:text-amber-300 mb-8 max-w-md">
+          Nie można załadować tego kroku (indeks: {currentStepIndex}, liczba
+          kroków: {steps.length}).
+        </p>
+        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/learning/${moduleId}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
+          </Button>
+          <Button onClick={() => setCurrentStepIndex(0)} variant="default">
+            Przejdź do pierwszego kroku
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* Confetti na sukces! */}
       {showConfetti && (
         <Confetti
           width={width}
@@ -253,7 +400,7 @@ export default function LessonPage() {
           numberOfPieces={300}
         />
       )}
-      {/* Nakładka podczas finalizacji */}
+
       {isFinishing && !showConfetti && (
         <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-400/80 to-emerald-600/90 backdrop-blur-sm flex flex-col items-center justify-center text-white">
           <Sparkles className="h-16 w-16 mb-4 animate-pulse" />
@@ -264,7 +411,7 @@ export default function LessonPage() {
           <Loader2 className="h-6 w-6 animate-spin mt-4" />
         </div>
       )}
-      {/* Przycisk powrotu */}
+
       <Button
         variant="ghost"
         size="sm"
@@ -273,7 +420,7 @@ export default function LessonPage() {
       >
         <ArrowLeft className="mr-2 h-4 w-4" /> Wróć do modułu
       </Button>
-      {/* Nagłówek lekcji i postęp */}
+
       <div className="mb-8">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-gray-900 dark:text-gray-100">
           {lesson.title}
@@ -291,31 +438,45 @@ export default function LessonPage() {
             Krok {currentStepIndex + 1} z {steps.length}
           </span>
         </div>
+
+        {lesson.requiredSkills && lesson.requiredSkills.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            {lesson.requiredSkills.map((skill, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
+        )}
+
         <ProgressBar currentStep={currentStepIndex} totalSteps={steps.length} />
       </div>
-      {/* Karta z treścią kroku */}
+
       <Card className="mb-6 shadow-lg border dark:border-gray-700">
-        {currentStep ? (
-          <CardContent className="p-6 md:p-8">
-            {currentStep.title && (
-              <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-gray-700">
-                {currentStep.title}
-              </h2>
-            )}
-            <StepRenderer
-              step={currentStep}
-              onComplete={(isCorrect) => handleStepAction(isCorrect)}
-              isLoading={isSubmitting}
-              key={currentStep.id}
-            />
-          </CardContent>
-        ) : (
-          <CardContent className="p-10 text-center text-gray-500">
-            <p>Nie można załadować tego kroku.</p>
-          </CardContent>
-        )}
+        <CardContent className="p-6 md:p-8">
+          <StepRenderer
+            step={currentStep}
+            onComplete={(data) => {
+              if (data) {
+                handleStepAction({
+                  ...data,
+                  timeSpent:
+                    typeof data.timeSpent === "number" ? data.timeSpent : 0,
+                  attempts: data.attempts || 1,
+                });
+              } else {
+                handleStepAction(undefined);
+              }
+            }}
+            isLoading={isSubmitting}
+            key={`step-${currentStep.id}-${currentStepIndex}`}
+          />
+        </CardContent>
       </Card>
-      {/* Nawigacja */}
+
       <div className="flex justify-between items-center">
         <Button
           onClick={handlePreviousStep}
@@ -326,18 +487,21 @@ export default function LessonPage() {
         >
           <ChevronLeft className="mr-2 h-5 w-5" /> Poprzedni
         </Button>
-        {currentStep && (
-          <LoadingButton
-            onClick={() => handleStepAction()}
-            isLoading={isSubmitting}
-            disabled={isFinishing}
-            size="lg"
-            className="shadow-md bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
-          >
-            {isLastStep ? "Zakończ lekcję" : "Następny krok"}
-            <ChevronRight className="ml-2 h-5 w-5" />
-          </LoadingButton>
-        )}
+        {currentStep &&
+          currentStep.type !== "quiz" &&
+          currentStep.type !== "interactive" &&
+          currentStep.type !== "challenge" && (
+            <LoadingButton
+              onClick={() => handleStepAction()}
+              isLoading={isSubmitting}
+              disabled={isFinishing}
+              size="lg"
+              className="shadow-md bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white"
+            >
+              {isLastStep ? "Zakończ lekcję" : "Następny krok"}
+              <ChevronRight className="ml-2 h-5 w-5" />
+            </LoadingButton>
+          )}
       </div>
     </div>
   );

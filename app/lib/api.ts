@@ -1,4 +1,15 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
+import {
+  Lesson,
+  LessonProgress,
+  LessonRecommendation,
+  Module,
+  ModuleProgress,
+  RecentActivity,
+  StepCompletionData,
+  StepVerificationResult,
+  UserLearningStats,
+} from "../types";
 
 // 1. Odczytaj bazowy URL API (który już zawiera /api)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -71,8 +82,6 @@ api.interceptors.response.use(
           "Received 401 Unauthorized. Check if cookie was sent (Network tab -> Request Headers -> Cookie) and is valid. Backend CORS/Cookie settings might be wrong."
         );
         // Rozważ globalną obsługę 401, np. wylogowanie lub przekierowanie
-        // import { useAuthStore } from '../store/authStore'; // Unikaj importu store tutaj - cykliczna zależność
-        // Można emitować event lub użyć innego mechanizmu
       } else if (error.response.status === 404) {
         console.error(
           "Received 404 Not Found. Verify the API path casing and existence on the backend."
@@ -91,8 +100,7 @@ api.interceptors.response.use(
 );
 
 // 5. POPRAWIONE ŚCIEŻKI W EKSPORTOWANYM OBIEKCIE
-// Ścieżki są teraz WZGLĘDNE do baseURL (który kończy się na /api)
-// Zakładam nazwy kontrolerów PascalCase (Auth, Lessons, User, UserActivity) - ZWERYFIKUJ!
+// Ścieżki są teraz zgodne z backendem
 export const apiService = {
   // Podstawowe metody - przekazują ścieżkę względną do instancji axios
   async get<T>(relativePath: string, params?: any): Promise<T> {
@@ -114,42 +122,79 @@ export const apiService = {
   },
 
   // Metody specyficzne - używają ścieżek względnych do /api
-  // ZWERYFIKUJ TE ŚCIEŻKI DOKŁADNIE W SWOIM BACKENDZIE / SWAGGERZE!
   lessons: {
-    getAllModules: () => apiService.get("Lessons/modules"), // np. https://.../api/Lessons/modules
+    getAllModules: () => apiService.get<Module[]>("Lessons/modules"),
+
     getModule: (moduleId: string) =>
-      apiService.get(`Lessons/modules/${moduleId}`),
-    getLesson: (lessonId: string) => apiService.get(`Lessons/${lessonId}`),
+      apiService.get<Module>(`Lessons/modules/${moduleId}`),
+
+    getLesson: (lessonId: string) =>
+      apiService.get<Lesson>(`Lessons/${lessonId}`),
+
     getLessonProgress: (lessonId: string) =>
-      apiService.get(`Lessons/${lessonId}/progress`),
+      apiService.get<LessonProgress>(`Lessons/${lessonId}/progress`),
+
     getModuleProgress: (moduleId: string) =>
-      apiService.get(`Lessons/modules/${moduleId}/progress`),
+      apiService.get<ModuleProgress>(`Lessons/modules/${moduleId}/progress`),
+
     getLessonSteps: (lessonId: string) =>
       apiService.get(`Lessons/${lessonId}/steps`),
-    completeStep: (lessonId: string, stepIndex: number) =>
-      apiService.post(`Lessons/${lessonId}/step/${stepIndex}/complete`),
+
+    completeStep: (
+      lessonId: string,
+      stepIndex: number,
+      completionData: StepCompletionData
+    ) =>
+      apiService.post<boolean>(
+        `Lessons/${lessonId}/step/${stepIndex}/complete`,
+        completionData
+      ),
+
+    verifyStepAnswer: (lessonId: string, stepIndex: number, answer: any) =>
+      apiService.post<StepVerificationResult>(
+        `Lessons/${lessonId}/step/${stepIndex}/verify`,
+        { answer }
+      ),
+
     completeLesson: (lessonId: string) =>
-      apiService.post(`Lessons/${lessonId}/complete`),
+      apiService.post<{ success: boolean; xpAwarded: number; message: string }>(
+        `Lessons/${lessonId}/complete`
+      ),
+
+    getUserLearningStats: () =>
+      apiService.get<UserLearningStats>(`Lessons/user/stats`),
+
+    getModuleCompletionRates: () =>
+      apiService.get<Record<string, number>>(`Lessons/user/completion-rates`),
+
+    getRecentActivities: (count: number = 10) =>
+      apiService.get<RecentActivity[]>(`Lessons/user/recent-activities`, {
+        count,
+      }),
+
+    getPersonalizedRecommendations: () =>
+      apiService.get<LessonRecommendation[]>(`Lessons/user/recommendations`),
   },
+
   user: {
-    getStats: () => apiService.get("User/stats"), // np. https://.../api/User/stats
+    getStats: () => apiService.get<UserLearningStats>("User/stats"),
     getProgress: () => apiService.get("User/progress"),
-    // Sprawdź kontroler dla streak/history - czy to UserActivity czy User?
-    getStreak: () => apiService.get("UserActivity/streak"), // Zakładając UserActivity
-    getActivityHistory: () => apiService.get("UserActivity/history"), // Zakładając UserActivity
-    // Ranking (dodano na podstawie poprzednich rozmów)
+    getStreak: () => apiService.get("UserActivity/streak"),
+    getActivityHistory: () => apiService.get("UserActivity/history"),
     getRanking: (category: string, page: number, limit: number) =>
-      apiService.get(`User/ranking/${category}`, { params: { page, limit } }), // np. https://.../api/User/ranking/level
+      apiService.get(`User/ranking/${category}`, { page, limit }),
   },
+
   auth: {
-    // Ścieżki względne do /api
-    login: (data: any) => apiService.post<any>("Auth/login", data), // np. https://.../api/Auth/login
+    login: (data: any) => apiService.post<any>("Auth/login", data),
     register: (data: any) => apiService.post<any>("Auth/register", data),
     logout: () => apiService.post<void>("Auth/logout"),
-    checkStatus: () => apiService.get<any>("Auth/user"), // np. https://.../api/Auth/user
-    // profile: (data: any) => apiService.put<any>("Auth/profile", data), // Jeśli istnieje
+    checkStatus: () => apiService.get<any>("Auth/user"),
+  },
+
+  notifications: {
+    getAll: () => apiService.get<Notification[]>("Notification"),
+    markAsRead: (notificationId: string) =>
+      apiService.post<void>(`Notification/${notificationId}/mark-as-read`),
   },
 };
-
-// Nie eksportuj domyślnie 'api', aby wymusić użycie 'apiService' z poprawnymi ścieżkami
-// export default api;
