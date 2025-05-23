@@ -1,5 +1,5 @@
 import { apiService } from "../lib/api";
-import { UserStats } from "../types";
+import { UserStats } from "../types/progress";
 
 export const userService = {
   // Fetch user stats

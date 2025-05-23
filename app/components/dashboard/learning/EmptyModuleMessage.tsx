@@ -1,4 +1,4 @@
-import { EmptyModuleMessageProps } from "../types";
+import { EmptyModuleMessageProps } from "@/app/types/dashboard";
 
 export default function EmptyModuleMessage({
   icon,

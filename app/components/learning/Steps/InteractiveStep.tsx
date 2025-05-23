@@ -1,22 +1,19 @@
 "use client";
 
-import { Step } from "@/app/types";
-import React, { useState, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
+import { Step } from "@/app/types/lesson";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  CheckCircle,
-  XCircle,
   AlertCircle,
-  Loader2,
-  Lightbulb,
-  Play,
   Check,
+  CheckCircle,
+  Lightbulb,
+  Loader2,
+  Play,
+  XCircle,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
 // Zakładamy istnienie runCodeTests i TestResult
-import { runCodeTests, TestResult } from "../../../lib/codeRunner";
-import { LoadingButton } from "../../ui/LoadingButton";
-import { cn } from "@/lib/utils";
 import {
   Accordion,
   AccordionContent,
@@ -24,6 +21,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { runCodeTests, TestResult } from "../../../lib/codeRunner";
+import { LoadingButton } from "../../ui/LoadingButton";
 
 // Dynamiczne ładowanie edytora Monaco (bez zmian)
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {

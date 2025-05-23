@@ -1,6 +1,6 @@
-import { useApiResource } from "../useApiResource";
 import { userService } from "@/app/services/userService";
-import { UserStats } from "@/app/types";
+import { useApiResource } from "../useApiResource";
+import { UserStats } from "@/app/types/progress";
 
 export const useUserStats = () => {
   const { data, error, isLoading, isError, mutate } = useApiResource<UserStats>(

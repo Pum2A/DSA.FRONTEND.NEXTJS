@@ -1,33 +1,26 @@
 "use client";
 
-import { Step } from "@/app/types";
-import React, { useState, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert } from "@/components/ui/alert";
 import {
-  CheckCircle,
-  XCircle,
   AlertCircle,
-  Loader2,
-  Lightbulb,
-  Play,
   Check,
+  CheckCircle,
+  Play,
   Trophy,
+  XCircle,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
 // Zakładamy istnienie runCodeTests i TestResult
+import { Accordion } from "@/components/ui/accordion";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 import { runCodeTests, TestResult } from "../../../lib/codeRunner";
 import { LoadingButton } from "../../ui/LoadingButton";
-import { cn } from "@/lib/utils";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import { Label } from "@/components/ui/label";
+import { Step } from "@/app/types/lesson";
 
 // Dynamiczne ładowanie edytora Monaco (bez zmian)
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {

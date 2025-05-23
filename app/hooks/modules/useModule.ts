@@ -1,6 +1,6 @@
-import { Module } from "@/app/types";
-import { useApiResource } from "../useApiResource";
 import { moduleService } from "@/app/services/moduleService";
+import { useApiResource } from "../useApiResource";
+import Module from "module";
 
 export const useModule = (moduleId: string | null) => {
   const { data, isLoading, isError, error, mutate } = useApiResource<Module>(

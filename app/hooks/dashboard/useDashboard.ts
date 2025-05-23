@@ -1,18 +1,18 @@
-import { useAuthStore } from "@/app/store/authStore";
-import { useCallback, useEffect, useReducer } from "react";
-import { useRouter } from "next/navigation";
 import { apiService } from "@/app/lib/api";
-import {
-  dashboardReducer,
-  initialDashboardState,
-} from "@/app/components/dashboard/state";
+import { useAuthStore } from "@/app/store/authStore";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useReducer } from "react";
+
 import {
   processModuleData,
   processStreakData,
   processUserActivity,
 } from "@/app/components/utils";
-import { Module, User, UserStats } from "@/app/types";
 import { useNotificationStore } from "@/app/store/notificationStore";
+import { dashboardReducer, initialDashboardState } from "@/app/types/dashboard";
+import { Module } from "@/app/types/module";
+import { UserStats } from "@/app/types/progress";
+import { User } from "@/app/types/user";
 
 export function useDashboard() {
   const {

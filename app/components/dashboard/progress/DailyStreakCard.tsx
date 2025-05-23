@@ -1,3 +1,4 @@
+import { DailyStreakCardProps } from "@/app/types/dashboard";
 import {
   Card,
   CardContent,
@@ -8,7 +9,6 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarClock, Flame } from "lucide-react";
-import { DailyStreakCardProps } from "../types";
 
 export default function DailyStreakCard({
   streak,

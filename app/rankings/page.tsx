@@ -19,7 +19,7 @@ import {
 } from "lucide-react"; // Dodano ikony
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { Player } from "../types/Player";
+import { Player } from "../types/user";
 
 // Fetcher (bez zmian - zakładamy, że działa poprawnie z credentials: 'include')
 const fetcher = async (url: string) => {
@@ -256,25 +256,19 @@ export default function RankingPage() {
                   >
                     {players.map((player: Player, index: number) => {
                       const rank = index + 1 + (page - 1) * limit;
-                      const rankColor = getRankColor(rank);
                       return (
                         <li
                           key={player.id}
-                          className="flex items-center py-3 px-1 sm:px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-md transition-colors"
+                          className={cn(
+                            "flex items-center py-4 px-2 sm:px-4 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors",
+                            getRankColor(rank)
+                          )}
                         >
-                          {/* Numer pozycji */}
-                          <div
-                            className={cn(
-                              "w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-full border-2 flex items-center justify-center mr-3 sm:mr-4 font-bold text-sm sm:text-base",
-                              rankColor
-                            )}
-                          >
+                          <div className="text-xl font-semibold w-8 text-center mr-4">
                             {rank}
                           </div>
-                          {/* Awatar */}
-                          <Avatar className="h-9 w-9 sm:h-10 sm:w-10 mr-3 sm:mr-4 flex-shrink-0">
-                            {/* <AvatarImage src={player.avatarUrl || ""} alt={`${player.firstName} ${player.lastName}`} /> */}
-                            <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm">
+                          <Avatar className="h-10 w-10 mr-4">
+                            <AvatarFallback>
                               {getInitials(
                                 player.firstName,
                                 player.lastName,
@@ -282,28 +276,14 @@ export default function RankingPage() {
                               )}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Dane gracza */}
-                          <div className="flex-grow min-w-0">
-                            <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 truncate">
-                              {player.firstName} {player.lastName}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
+                              {player.firstName && player.lastName
+                                ? `${player.firstName} ${player.lastName}`
+                                : player.userName}
                             </p>
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                              @{player.firstName.toLowerCase()}{" "}
-                              {player.lastName.toLowerCase()}
-                            </p>
-                          </div>
-                          {/* Wartość rankingu */}
-                          <div className="ml-4 flex-shrink-0 text-right">
-                            <p className="text-sm sm:text-base font-semibold text-indigo-600 dark:text-indigo-400">
-                              {formatValue(player, category).split(" ")[0]}{" "}
-                              {/* Pokaż tylko wartość */}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatValue(player, category)
-                                .split(" ")
-                                .slice(1)
-                                .join(" ") || categoryIcon}{" "}
-                              {/* Pokaż jednostkę lub ikonę */}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {formatValue(player, category)}
                             </p>
                           </div>
                         </li>
@@ -312,26 +292,25 @@ export default function RankingPage() {
                   </ul>
                 </div>
 
-                {/* Paginacja - ulepszona */}
-                <div className="flex justify-between items-center mt-8 pt-4 border-t dark:border-gray-700">
+                {/* Paginacja */}
+                <div className="mt-6 flex justify-center gap-4">
                   <Button
                     onClick={handlePrevPage}
-                    disabled={page === 1 || isLoading}
+                    disabled={page === 1}
                     variant="outline"
                     size="sm"
                   >
-                    <ChevronLeft className="mr-1.5 h-4 w-4" /> Poprzednia
+                    <ChevronLeft className="mr-2 h-4 w-4" />
+                    Poprzednia
                   </Button>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    Strona {page}
-                  </span>
                   <Button
                     onClick={handleNextPage}
-                    disabled={players.length < limit || isLoading}
+                    disabled={!players || players.length < limit}
                     variant="outline"
                     size="sm"
                   >
-                    Następna <ChevronRight className="ml-1.5 h-4 w-4" />
+                    Następna
+                    <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
               </>

@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Lesson } from "@/app/types";
+import { Lesson } from "@/app/types/lesson";
 import {
   Card,
   CardContent,
@@ -7,17 +6,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils"; // Zaimportuj cn (lub odpowiednik) do łączenia klas
-import {
-  CheckCircle,
-  Loader2,
-  Lock,
-  Clock,
-  Star,
-  ArrowRight,
-  X,
-} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils"; // Zaimportuj cn (lub odpowiednik) do łączenia klas
+import { ArrowRight, CheckCircle, Clock, Lock, Star, X } from "lucide-react";
+import Link from "next/link";
 
 interface LessonCardProps {
   lesson: Lesson;

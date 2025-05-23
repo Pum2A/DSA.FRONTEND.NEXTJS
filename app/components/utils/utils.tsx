@@ -1,12 +1,13 @@
-import { Module } from "@/app/types";
 import { BookOpen, Clock, Medal, TrendingUp } from "lucide-react";
 import { JSX } from "react";
+
 import {
   DashboardLearningPath,
   ProcessedActivity,
   UserActionType,
   UserActivity,
-} from "../dashboard/types";
+} from "@/app/types/dashboard";
+import { Module } from "@/app/types/module";
 import { getModuleIcon, toDateStringUTC } from "./helpers";
 
 // Mapa typów aktywności na ikony i etykiety

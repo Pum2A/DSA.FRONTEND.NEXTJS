@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  AlertCircle,
-  ArrowLeft,
-  RefreshCcw,
-  PackageX,
-  BookOpen,
-} from "lucide-react";
-import { Module, Lesson, UserProgress } from "@/app/types";
-import { apiService } from "@/app/lib/api";
 import LessonCard, {
   LessonCardSkeleton,
 } from "@/app/components/learning/LessonCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { apiService } from "@/app/lib/api";
 import { useLoadingStore } from "@/app/store/loadingStore";
+import { Module } from "@/app/types/module";
+import { UserProgress } from "@/app/types/progress";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  PackageX,
+  RefreshCcw,
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 // Funkcja do wyboru ikony modułu (przykładowa)
 function getModuleIcon(module: Module | null) {

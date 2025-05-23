@@ -1,15 +1,15 @@
-import { Step } from "@/app/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
 import { Terminal } from "lucide-react"; // Ikona dla alertu
 
 // Importuj swoje komponenty kroków
-import TextStep from "./Steps/TextStep";
+import ChallengeStep from "./Steps/ChallengeStep";
 import CodeStep from "./Steps/CodeStep";
 import ImageStep from "./Steps/ImageStep";
-import QuizStep from "./Steps/QuizStep";
-import ListStep from "./Steps/ListStep";
 import InteractiveStep from "./Steps/InteractiveStep";
-import ChallengeStep from "./Steps/ChallengeStep";
+import ListStep from "./Steps/ListStep";
+import QuizStep from "./Steps/QuizStep";
+import TextStep from "./Steps/TextStep";
+import { Step } from "@/app/types/lesson";
 
 // Zaktualizowany interfejs propsów
 interface StepRendererProps {

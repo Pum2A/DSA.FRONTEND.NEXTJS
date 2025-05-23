@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useLoadingStore } from "@/app/store/loadingStore";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, BookHeart, PackageX, RefreshCcw } from "lucide-react";
-import { Module } from "../types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiService } from "../lib/api";
+import { AlertCircle, BookHeart, PackageX, RefreshCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ModuleCard, {
   ModuleCardSkeleton,
 } from "../components/learning/ModuleCard";
-import { useLoadingStore } from "@/app/store/loadingStore";
+import { apiService } from "../lib/api";
+import { Module } from "../types/module";
 
 export default function LearningPage() {
   const [modules, setModules] = useState<Module[]>([]);

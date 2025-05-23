@@ -1,30 +1,31 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import ProgressBar from "@/app/components/learning/ProgressBar";
+import StepRenderer from "@/app/components/learning/StepRenderer";
+import { LoadingButton } from "@/app/components/ui/LoadingButton";
+import { useNotifications, useUserStats } from "@/app/hooks";
+import { apiService } from "@/app/lib/api";
+import { useLoadingStore } from "@/app/store/loadingStore";
+import { Lesson, Step } from "@/app/types/lesson";
+import { UserProgress } from "@/app/types/progress";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertCircle,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Loader2,
   RefreshCcw,
-  ArrowLeft,
   Sparkles,
-  Clock,
   Star,
 } from "lucide-react";
-import { Lesson, Step, UserProgress } from "@/app/types";
-import { apiService } from "@/app/lib/api";
-import StepRenderer from "@/app/components/learning/StepRenderer";
-import ProgressBar from "@/app/components/learning/ProgressBar";
-import { LoadingButton } from "@/app/components/ui/LoadingButton";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Confetti from "react-confetti";
 import { useWindowSize } from "react-use";
-import { useNotifications, useUserStats } from "@/app/hooks";
-import { useLoadingStore } from "@/app/store/loadingStore";
 
 export default function LessonPage() {
   const { moduleId, lessonId } = useParams<{

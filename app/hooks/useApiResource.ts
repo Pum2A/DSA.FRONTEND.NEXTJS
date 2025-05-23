@@ -1,5 +1,5 @@
-import useSWR from "swr";
 import toast from "react-hot-toast";
+import useSWR from "swr";
 
 export function useApiResource<T>(
   key: string | null,

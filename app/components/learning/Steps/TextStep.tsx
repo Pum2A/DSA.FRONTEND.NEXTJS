@@ -1,7 +1,7 @@
-import { Step } from "@/app/types";
+import { Step } from "@/app/types/lesson";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm"; // Dodaj dla lepszej obsługi markdown (np. tabele)
 import rehypeRaw from "rehype-raw"; // Dodaj dla obsługi HTML w markdown
+import remarkGfm from "remark-gfm"; // Dodaj dla lepszej obsługi markdown (np. tabele)
 
 // Propsy już nie zawierają onComplete ani isLoading
 interface TextStepProps {

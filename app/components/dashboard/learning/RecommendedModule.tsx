@@ -1,8 +1,8 @@
+import { RecommendedModuleProps } from "@/app/types/dashboard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { RecommendedModuleProps } from "../types";
 
 export default function RecommendedModule({ path }: RecommendedModuleProps) {
   return (

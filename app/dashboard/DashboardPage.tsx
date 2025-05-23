@@ -1,14 +1,14 @@
 "use client";
 
+import { useDashboard } from "@/app/hooks/dashboard/useDashboard";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { useDashboard } from "@/app/hooks/dashboard/useDashboard";
+import { ActivityCard } from "../components/dashboard/activity";
+import { ModuleTabs } from "../components/dashboard/learning";
 import {
   DailyStreakCard,
   ProgressCard,
 } from "../components/dashboard/progress";
-import { ModuleTabs } from "../components/dashboard/learning";
-import { ActivityCard } from "../components/dashboard/activity";
 
 export default function DashboardPage() {
   const {

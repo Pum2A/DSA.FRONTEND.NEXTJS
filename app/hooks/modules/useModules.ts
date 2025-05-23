@@ -1,6 +1,6 @@
-import { Module } from "@/app/types";
-import { useApiResource } from "../useApiResource";
 import { moduleService } from "@/app/services/moduleService";
+import { Module } from "@/app/types/module";
+import { useApiResource } from "../useApiResource";
 
 export const useModules = () => {
   const { data, isLoading, isError, error, mutate } = useApiResource<Module[]>(

@@ -1,4 +1,4 @@
-import { Step } from "@/app/types";
+import { Step } from "@/app/types/lesson";
 import {
   Accordion,
   AccordionContent,
@@ -6,8 +6,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"; // Shadcn Accordion
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
 // Propsy już nie zawierają onComplete ani isLoading
 interface ListStepProps {

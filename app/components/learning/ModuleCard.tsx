@@ -1,32 +1,24 @@
+import { Module } from "@/app/types/module";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ArrowDownUp,
+  ArrowRight,
+  Binary,
+  BookOpen,
+  BrainCircuit,
+  Code2,
+  Columns,
+  Component,
+  Gauge,
+  ListTree,
+  Network,
+  Package,
+  Rows,
+  Sigma,
+} from "lucide-react"; // Importuj ikony
 import Link from "next/link";
 import { JSX } from "react";
-import { Module } from "@/app/types"; // Upewnij się, że ścieżka jest poprawna
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  ArrowRight,
-  Code2,
-  ListTree,
-  ArrowDownUp,
-  Binary,
-  Gauge,
-  Network,
-  Rows,
-  Columns,
-  Sigma,
-  BrainCircuit,
-  Package,
-  Component,
-  BookOpen,
-} from "lucide-react"; // Importuj ikony
-import { Skeleton } from "@/components/ui/skeleton";
 
 // Funkcja pomocnicza do wybierania ikony (zintegrowana)
 function getModuleIcon(module: Module): JSX.Element {

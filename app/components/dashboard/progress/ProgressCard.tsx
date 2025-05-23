@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, BookOpen, Lightbulb, Star } from "lucide-react";
 import RecommendedModule from "../learning/RecommendedModule";
-import { ProgressCardProps } from "../types";
+import { ProgressCardProps } from "@/app/types/dashboard";
 
 export default function ProgressCard({
   stats,

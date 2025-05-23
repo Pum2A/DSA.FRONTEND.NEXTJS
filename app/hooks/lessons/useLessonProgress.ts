@@ -1,6 +1,6 @@
-import { UserProgress } from "@/app/types";
-import { useApiResource } from "../useApiResource";
 import { lessonService } from "@/app/services/lessonService";
+import { useApiResource } from "../useApiResource";
+import { UserProgress } from "@/app/types/progress";
 
 export const useLessonProgress = (lessonId: string | null) => {
   const { data, isLoading, isError, error, mutate } =

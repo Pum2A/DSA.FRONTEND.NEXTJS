@@ -1,5 +1,6 @@
 "use client";
 
+import { useNotificationStore } from "@/app/store/notificationStore";
 import {
   Card,
   CardContent,
@@ -10,18 +11,15 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "../ui/LoadingButton";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthStore } from "../../store/authStore";
-import { useNotificationStore } from "@/app/store/notificationStore";
-import { clear } from "console";
-import { RegisterData } from "../../types/auth";
+import { LoadingButton } from "../ui/LoadingButton";
 
 const registerSchema = z
   .object({

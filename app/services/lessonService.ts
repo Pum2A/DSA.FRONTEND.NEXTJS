@@ -1,5 +1,6 @@
 import { apiService } from "../lib/api";
-import { Lesson, Step, UserProgress } from "../types";
+import { Lesson, Step } from "../types/lesson";
+import { UserProgress } from "../types/progress";
 
 export const lessonService = {
   // Fetch all modules

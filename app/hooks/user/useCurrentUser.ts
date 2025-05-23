@@ -1,6 +1,6 @@
-import useSWR from "swr";
 import { apiService } from "@/app/lib/api";
-import type { User } from "@/app/types/auth";
+import { User } from "@/app/types/user";
+import useSWR from "swr";
 
 export function useCurrentUser(isAuthenticated: boolean) {
   return useSWR<User | null>(

@@ -1,6 +1,6 @@
-import { Notification } from "@/app/types/Notification";
-import { useApiResource } from "../useApiResource";
 import { notificationService } from "@/app/services/notificationService";
+import { Notification } from "@/app/types/dashboard";
+import { useApiResource } from "../useApiResource";
 
 export const useNotifications = () => {
   const { data, isLoading, isError, error, mutate } = useApiResource<

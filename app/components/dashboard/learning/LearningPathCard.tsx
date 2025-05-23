@@ -1,3 +1,4 @@
+import { LearningPathCardProps } from "@/app/types/dashboard";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,7 +11,6 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { LearningPathCardProps } from "../types";
 
 export default function LearningPathCard({
   path,

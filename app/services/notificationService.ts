@@ -1,12 +1,5 @@
+import { Notification } from "@/app/types/dashboard"; // ✅ Importuj typ
 import { apiService } from "../lib/api";
-
-export type Notification = {
-  id: string;
-  message: string;
-  createdAt: string;
-  isRead: boolean;
-  type: "achievement" | "level-up" | "general";
-};
 
 export const notificationService = {
   getAll: async (): Promise<Notification[]> => {

@@ -1,4 +1,5 @@
-// Stwórz centralną definicję User używaną we wszystkich miejscach
+// user.ts
+
 export interface User {
   id: string;
   userName: string;
@@ -9,13 +10,16 @@ export interface User {
   level: number;
   roles?: string[];
   joinedAt?: string;
-  streak?: number; // Dodaj opcjonalnie dla kompatybilności
+  streak?: number; // kompatybilność z dashboardem itp.
 }
 
-// Eksportuj typy specyficzne dla auth, ale bazujące na głównym User
+// Typ dla aktualizacji użytkownika — częściowa aktualizacja wymaga id
+export type UserUpdate = Partial<User> & { id: string };
+
+// Specyficzne aliasy dla auth i player bazujące na User
+
 export type AuthUser = User;
 
-// Eksportuj typy specyficzne dla player, ale bazujące na głównym User
 export type Player = Pick<
   User,
   "id" | "firstName" | "lastName" | "userName" | "level" | "joinedAt"

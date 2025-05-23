@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState, ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "../store/authStore";
 import { useLoadingStore } from "@/app/store/loadingStore";
+import { useRouter } from "next/navigation";
+import { ReactNode, useEffect, useState } from "react";
+import { useAuthStore } from "../store/authStore";
 
 interface AuthProviderProps {
   children: ReactNode;

@@ -1,17 +1,11 @@
-import { useState, useEffect } from "react";
-import { LoadingButton } from "../../ui/LoadingButton";
-import { Step } from "@/app/types";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; // Shadcn RadioGroup
-import { Label } from "@/components/ui/label"; // Shadcn Label
+import { Step } from "@/app/types/lesson";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  CheckCircle,
-  XCircle,
-  Lightbulb,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { Label } from "@/components/ui/label"; // Shadcn Label
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; // Shadcn RadioGroup
 import { cn } from "@/lib/utils"; // Utility do łączenia klas
+import { AlertCircle, CheckCircle, Loader2, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LoadingButton } from "../../ui/LoadingButton";
 
 // Typ danych quizu (bez zmian)
 interface QuizData {

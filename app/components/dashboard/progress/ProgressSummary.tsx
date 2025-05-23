@@ -1,4 +1,4 @@
-import { UserStats } from "@/app/types";
+import { UserStats } from "@/app/types/progress";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface ProgressSummaryProps {
