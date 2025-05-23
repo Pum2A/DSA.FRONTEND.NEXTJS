@@ -1,8 +1,8 @@
-// module.ts
+// module.ts - ZGODNOŚĆ Z BACKEND ModuleDto
 
-import { Lesson } from "./lesson";
+import { LessonDto } from "./lesson";
 
-export interface Module {
+export interface ModuleDto {
   id: number;
   externalId: string;
   title: string;
@@ -10,5 +10,22 @@ export interface Module {
   order: number;
   icon: string;
   iconColor: string;
-  lessons?: Lesson[];
+  prerequisites: string[];
+  lessons: LessonDto[];
+  totalXP: number;
+  estimatedTotalTime: string;
+  difficulty: string;
 }
+
+export interface ModuleProgressDto {
+  completedLessons: number;
+  inProgressLessons: number;
+  totalLessons: number;
+  totalXPEarned: number;
+  lastActivity?: Date;
+  completionPercentage: number;
+}
+
+// COMPATIBILITY
+export type Module = ModuleDto;
+export type ModuleProgress = ModuleProgressDto;

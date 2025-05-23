@@ -1,4 +1,5 @@
-import { Step } from "@/app/types/lesson";
+"use client";
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label"; // Shadcn Label
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; // Shadcn RadioGroup
@@ -6,6 +7,11 @@ import { cn } from "@/lib/utils"; // Utility do łączenia klas
 import { AlertCircle, CheckCircle, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LoadingButton } from "../../ui/LoadingButton";
+import {
+  StepDto,
+  StepCompletionResult,
+  StepCompletionData,
+} from "@/app/types/lesson";
 
 // Typ danych quizu (bez zmian)
 interface QuizData {
@@ -15,10 +21,10 @@ interface QuizData {
   explanation: string;
 }
 
-// Zaktualizowane propsy
+// Zaktualizowane propsy - teraz obsługujemy StepCompletionResult
 interface QuizStepProps {
-  step: Step;
-  onComplete: (isCorrect: boolean) => void; // Teraz wymaga boolean
+  step: StepDto;
+  onComplete: (result: StepCompletionResult) => void; // Zaktualizowane do nowego typu
   isLoading?: boolean;
 }
 
@@ -28,22 +34,40 @@ export default function QuizStep({
   isLoading = false,
 }: QuizStepProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState(false); // Zmieniono z 'answered'
+  const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [quizData, setQuizData] = useState<QuizData | null>(null);
-  const [processing, setProcessing] = useState(false); // Wewnętrzny stan ładowania dla "Sprawdź"
+  const [processing, setProcessing] = useState(false);
+  const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [attempts, setAttempts] = useState<number>(0);
 
-  // Logika parsowania danych (bez zmian, ale dodano obsługę braku danych)
+  // Timer dla śledzenia czasu spędzonego na kroku
+  useEffect(() => {
+    const startTime = Date.now();
+    return () => {
+      setTimeSpent(Math.floor((Date.now() - startTime) / 1000));
+    };
+  }, []);
+
+  // Logika parsowania danych
   useEffect(() => {
     let data: QuizData | null = null;
-    if (step.question && step.options) {
+
+    // Spróbuj użyć nowej struktury z quizData
+    if (step.quizData) {
+      data = step.quizData;
+    }
+    // Fallback do starszych pól
+    else if (step.question && step.options) {
       data = {
         question: step.question,
         options: step.options,
         correctAnswer: step.correctAnswer || "",
         explanation: step.explanation || "",
       };
-    } else if (step.additionalData) {
+    }
+    // Ostatni fallback do additionalData
+    else if (step.additionalData) {
       try {
         data =
           typeof step.additionalData === "string"
@@ -58,8 +82,7 @@ export default function QuizStep({
       setQuizData(data);
     } else {
       console.error("Invalid or missing quiz data for step:", step);
-      // Można ustawić stan błędu w komponencie
-      setQuizData(null); // Upewnij się, że jest null, jeśli dane są złe
+      setQuizData(null);
     }
 
     // Resetuj stan przy zmianie kroku
@@ -73,26 +96,38 @@ export default function QuizStep({
   const handleCheckAnswer = () => {
     if (!selectedOption || !quizData || showResult) return;
 
-    setProcessing(true); // Pokaż ładowanie przycisku "Sprawdź"
+    setProcessing(true);
+    setAttempts((prev) => prev + 1);
+
     const correct = selectedOption === quizData.correctAnswer;
     setIsCorrect(correct);
     setShowResult(true);
-    setProcessing(false); // Ukryj ładowanie
+    setProcessing(false);
 
-    // Wywołaj onComplete z wynikiem - LessonPage zdecyduje, czy iść dalej
-    onComplete(correct);
+    // Tworzymy dane o ukończeniu kroku zgodne z typem StepCompletionData
+    const completionData: StepCompletionData = {
+      answer: selectedOption,
+      isCorrect: correct,
+      timeSpent,
+      attempts,
+      completionStatus: correct,
+    };
+
+    // Tworzymy wynik ukończenia kroku zgodny z typem StepCompletionResult
+    const completionResult: StepCompletionResult = {
+      success: correct,
+      error: correct ? "" : "Nieprawidłowa odpowiedź",
+      xpEarned: correct ? Math.max(10, 20 - (attempts - 1) * 5) : 0, // Większa nagroda za pierwszą próbę
+      nextStepIndex: undefined,
+      isLessonCompleted: false,
+    };
+
+    // Wywołaj onComplete z wynikiem
+    onComplete(completionResult);
   };
-
-  // Obsługa kliknięcia "Kontynuuj" (teraz niepotrzebne, onComplete wywołane w handleCheckAnswer)
-  // const handleContinue = () => {
-  //   if (isCorrect) {
-  //     onComplete(true); // Przekaż sukces do LessonPage
-  //   }
-  // };
 
   // Lepszy stan ładowania/błędu danych quizu
   if (!quizData && !step.title) {
-    // Jeśli nie ma nawet tytułu, załóżmy, że dane są w trakcie ładowania
     return (
       <div className="flex items-center justify-center p-8 text-gray-500 dark:text-gray-400">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Ładowanie pytania...
@@ -224,15 +259,27 @@ export default function QuizStep({
           <LoadingButton
             onClick={handleCheckAnswer}
             disabled={!selectedOption || processing}
-            isLoading={processing || isLoading} // Pokaż globalny spinner też
+            isLoading={processing || isLoading}
             variant={selectedOption ? "default" : "secondary"}
             size="lg"
           >
             Sprawdź odpowiedź
           </LoadingButton>
         )}
-        {/* Przycisk "Kontynuuj" został usunięty. Nawigacja odbywa się przez LessonPage po onComplete(true). */}
-        {/* Jeśli jest błąd, użytkownik musi wybrać poprawną odpowiedź i kliknąć "Sprawdź" ponownie. */}
+
+        {/* Możliwość ponownej próby, jeśli odpowiedź jest niepoprawna */}
+        {showResult && !isCorrect && (
+          <LoadingButton
+            onClick={() => {
+              setShowResult(false);
+              setSelectedOption(null);
+            }}
+            variant="secondary"
+            size="lg"
+          >
+            Spróbuj ponownie
+          </LoadingButton>
+        )}
       </div>
     </div>
   );

@@ -10,10 +10,10 @@ import ModuleCard, {
   ModuleCardSkeleton,
 } from "../components/learning/ModuleCard";
 import { apiService } from "../lib/api";
-import { Module } from "../types/module";
+import { ModuleDto } from "../types/module";
 
 export default function LearningPage() {
-  const [modules, setModules] = useState<Module[]>([]);
+  const [modules, setModules] = useState<ModuleDto[]>([]); // Updated to ModuleDto
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ export default function LearningPage() {
       setLoading(true);
       setError(null);
       const data = await apiService.lessons.getAllModules(); // Add { signal: controller.signal } if possible
-      const sortedData = [...(data as Module[])].sort(
+      const sortedData = [...(data as ModuleDto[])].sort(
         (a, b) => a.order - b.order
       );
       setModules(sortedData);

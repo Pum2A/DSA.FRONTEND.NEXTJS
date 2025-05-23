@@ -1,7 +1,14 @@
 "use client";
 
-import { Step } from "@/app/types/lesson";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   AlertCircle,
   Check,
@@ -13,19 +20,18 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
-// Zakładamy istnienie runCodeTests i TestResult
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { runCodeTests, TestResult } from "../../../lib/codeRunner";
 import { LoadingButton } from "../../ui/LoadingButton";
+import {
+  StepDto,
+  StepCompletionResult,
+  StepCompletionData,
+} from "@/app/types/lesson";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
-// Dynamiczne ładowanie edytora Monaco (bez zmian)
+// Dynamiczne ładowanie edytora Monaco
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => (
@@ -36,11 +42,11 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ),
 });
 
-// Zaktualizowane propsy
+// Zaktualizowane propsy - teraz obsługujemy StepCompletionResult
 interface InteractiveStepProps {
-  step: Step;
-  onComplete: (isCorrect: boolean) => void; // Wymaga boolean
-  isLoading?: boolean; // Globalny isLoading z LessonPage
+  step: StepDto;
+  onComplete: (result: StepCompletionResult) => void; // Zaktualizowane do nowego typu
+  isLoading?: boolean;
 }
 
 export default function InteractiveStep({
@@ -48,19 +54,29 @@ export default function InteractiveStep({
   onComplete,
   isLoading = false,
 }: InteractiveStepProps) {
-  // Poprawiona walidacja kroku
+  // Poprawiona walidacja kroku - używamy step.type zamiast step.StepType
   const isStepValid =
-    step.stepType === "interactive" &&
+    step.type === "interactive" &&
     Array.isArray(step.testCases) &&
     step.testCases.length > 0;
 
   const [userCode, setUserCode] = useState<string>("");
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isRunningTests, setIsRunningTests] = useState(false); // Wewnętrzny stan ładowania testów
+  const [isRunningTests, setIsRunningTests] = useState(false);
   const [allTestsPassed, setAllTestsPassed] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [attempts, setAttempts] = useState<number>(0);
 
-  // Inicjalizacja/Reset (bez zmian, ale dodano czyszczenie generalError)
+  // Timer dla śledzenia czasu spędzonego na kroku
+  useEffect(() => {
+    const startTime = Date.now();
+    return () => {
+      setTimeSpent(Math.floor((Date.now() - startTime) / 1000));
+    };
+  }, []);
+
+  // Inicjalizacja/Reset
   useEffect(() => {
     if (isStepValid) {
       setUserCode(step.initialCode || step.code || "");
@@ -74,16 +90,16 @@ export default function InteractiveStep({
       setAllTestsPassed(false);
       setIsRunningTests(false);
       setGeneralError(null);
-      if (step.stepType === "interactive") {
+      if (step.type === "interactive") {
         console.warn(
           "InteractiveStep: Krok interaktywny bez poprawnych testCases.",
           step
         );
       }
     }
-  }, [step, isStepValid]); // Dodano isStepValid do zależności
+  }, [step, isStepValid]);
 
-  // Handler zmiany kodu (bez zmian)
+  // Handler zmiany kodu
   const handleCodeChange = useCallback(
     (value: string | undefined) => {
       setUserCode(value || "");
@@ -99,12 +115,15 @@ export default function InteractiveStep({
   // Handler uruchamiania testów
   const handleRunTests = useCallback(async () => {
     if (!isStepValid || !step.testCases) {
-      // Ponowna weryfikacja
       setGeneralError(
         "Nie można uruchomić testów - krok jest nieprawidłowo skonfigurowany."
       );
       return;
     }
+
+    // Zwiększamy licznik prób
+    setAttempts((prev) => prev + 1);
+
     setIsRunningTests(true);
     setTestResults([]);
     setAllTestsPassed(false);
@@ -115,18 +134,16 @@ export default function InteractiveStep({
         step.testCases,
         step.language || "javascript",
         5000
-      ); // Zwiększony timeout
+      );
       setTestResults(results);
       const allPassed = results.every((result) => result.status === "pass");
       setAllTestsPassed(allPassed);
 
       if (!allPassed && results.length === 0) {
-        // Jeśli nie ma wyników, a miały być
         setGeneralError(
           `Nie udało się uruchomić testów. Sprawdź kod pod kątem błędów składni.`
         );
       }
-      // Nie wywołujemy onComplete tutaj
     } catch (err: any) {
       console.error("Błąd podczas wywołania runCodeTests:", err);
       setGeneralError(
@@ -137,19 +154,53 @@ export default function InteractiveStep({
     } finally {
       setIsRunningTests(false);
     }
-  }, [userCode, step, isStepValid]); // Dodano isStepValid
+  }, [userCode, step, isStepValid]);
 
-  // Handler dla przycisku "Kontynuuj" (wywoływany tylko po zaliczeniu testów)
+  // Handler dla przycisku "Kontynuuj" - ZAKTUALIZOWANY dla StepCompletionResult
   const handleContinue = () => {
     if (allTestsPassed) {
-      onComplete(true); // Sygnalizuj sukces do LessonPage
+      // Tworzymy dane o ukończeniu kroku zgodne z typem StepCompletionData
+      const completionData: StepCompletionData = {
+        answer: userCode,
+        isCorrect: true,
+        timeSpent,
+        attempts,
+        testsPassed: testResults.filter((r) => r.status === "pass").length,
+        totalTests: step.testCases?.length || 0,
+        completionStatus: true,
+      };
+
+      // Tworzymy wynik ukończenia kroku zgodny z typem StepCompletionResult
+      const completionResult: StepCompletionResult = {
+        success: true,
+        error: "",
+        xpEarned: Math.max(10, 30 - attempts * 5), // Przykładowe obliczanie XP
+        nextStepIndex: undefined, // Backend ustawi następny krok
+        isLessonCompleted: false, // Backend ustawi, czy lekcja jest ukończona
+      };
+
+      onComplete(completionResult);
     }
+  };
+
+  // Handler dla przycisku "Pomiń" w przypadku błędu konfiguracji
+  const handleSkip = () => {
+    // Tworzymy uproszczony wynik dla pominięcia
+    const skipResult: StepCompletionResult = {
+      success: true,
+      error: "Krok pominięty z powodu błędu konfiguracji",
+      xpEarned: 0, // Brak XP za pominięcie
+      nextStepIndex: undefined,
+      isLessonCompleted: false,
+    };
+
+    onComplete(skipResult);
   };
 
   // --- Renderowanie ---
 
   // Obsługa nieprawidłowo skonfigurowanego kroku
-  if (step.stepType === "interactive" && !isStepValid) {
+  if (step.type === "interactive" && !isStepValid) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
@@ -157,9 +208,8 @@ export default function InteractiveStep({
         <AlertDescription>
           Ten krok interaktywny jest nieprawidłowo skonfigurowany (brak
           `testCases`).
-          {/* Przycisk "Pomiń" wywołuje onComplete(true), aby pozwolić przejść dalej mimo błędu konfiguracji */}
           <Button
-            onClick={() => onComplete(true)}
+            onClick={handleSkip}
             variant="outline"
             size="sm"
             className="ml-4 mt-2 sm:mt-0"
@@ -170,8 +220,9 @@ export default function InteractiveStep({
       </Alert>
     );
   }
+
   // Obsługa kroku, który nie jest interaktywny
-  if (step.stepType !== "interactive") {
+  if (step.type !== "interactive") {
     return (
       <div className="p-4 text-gray-500">
         Krok nie jest typu interaktywnego.
@@ -182,17 +233,21 @@ export default function InteractiveStep({
   // Główna część renderująca dla POPRAWNEGO kroku interaktywnego
   return (
     <div className="interactive-step space-y-6">
-      {/* Tytuł i treść (bez zmian) */}
+      {/* Tytuł i treść */}
       {step.title && (
         <h2 className="text-2xl font-semibold border-b pb-2 dark:border-gray-700">
           {step.title}
         </h2>
       )}
       {step.content && (
-        <div
-          className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
-          dangerouslySetInnerHTML={{ __html: step.content }}
-        />
+        <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+          >
+            {step.content}
+          </ReactMarkdown>
+        </div>
       )}
 
       {/* Edytor Monaco */}
@@ -203,15 +258,11 @@ export default function InteractiveStep({
           theme="vs-dark"
           value={userCode}
           onChange={handleCodeChange}
-          options={
-            {
-              /* opcje bez zmian */
-            }
-          }
+          options={{}}
         />
       </div>
 
-      {/* Wskazówka (bez zmian) */}
+      {/* Wskazówka */}
       {step.hint && (
         <details className="p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/30 dark:border-blue-800 shadow-sm">
           <summary className="cursor-pointer font-medium text-blue-800 dark:text-blue-300 flex items-center">
@@ -239,7 +290,7 @@ export default function InteractiveStep({
         {allTestsPassed && !isRunningTests && (
           <LoadingButton
             onClick={handleContinue}
-            isLoading={isLoading} // Użyj globalnego isLoading dla tego przycisku
+            isLoading={isLoading}
             disabled={isLoading || isRunningTests}
             size="lg"
             className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white"
@@ -249,20 +300,30 @@ export default function InteractiveStep({
         )}
       </div>
 
-      {/* Wyświetlanie błędów ogólnych lub sukcesu (bez zmian, ale poprawiono klasę Alert) */}
+      {/* Wyświetlanie błędów ogólnych lub sukcesu */}
       {generalError && !isRunningTests && (
-        <Alert variant="destructive">...</Alert>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Błąd wykonania</AlertTitle>
+          <AlertDescription>{generalError}</AlertDescription>
+        </Alert>
       )}
+
       {allTestsPassed && !isRunningTests && (
         <Alert
           variant="default"
           className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300"
         >
-          ...
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <AlertTitle>Sukces!</AlertTitle>
+          <AlertDescription>
+            Wszystkie testy przeszły pomyślnie. Możesz przejść do następnego
+            kroku.
+          </AlertDescription>
         </Alert>
       )}
 
-      {/* Wyświetlanie wyników testów (ulepszony wygląd) */}
+      {/* Wyświetlanie wyników testów */}
       {testResults.length > 0 && !isRunningTests && (
         <div className="space-y-3 pt-4">
           <h3 className="text-lg font-semibold">Wyniki Testów:</h3>
@@ -346,7 +407,7 @@ export default function InteractiveStep({
         </div>
       )}
 
-      {/* Rozwiązanie (Solution) - Użyj Accordion dla spójności */}
+      {/* Rozwiązanie (Solution) - Accordion */}
       {step.solution && (
         <Accordion type="single" collapsible className="w-full pt-4">
           <AccordionItem
@@ -361,7 +422,6 @@ export default function InteractiveStep({
                 <pre className="font-mono text-sm text-gray-800 dark:text-gray-200">
                   <code>{step.solution}</code>
                 </pre>
-                {/* Można też użyć SyntaxHighlighter tutaj */}
               </div>
             </AccordionContent>
           </AccordionItem>

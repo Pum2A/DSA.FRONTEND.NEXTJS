@@ -1,4 +1,4 @@
-import { Module } from "@/app/types/module";
+import { ModuleDto } from "@/app/types/module";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -21,7 +21,7 @@ import Link from "next/link";
 import { JSX } from "react";
 
 // Funkcja pomocnicza do wybierania ikony (zintegrowana)
-function getModuleIcon(module: Module): JSX.Element {
+function getModuleIcon(module: ModuleDto): JSX.Element {
   const lowerCaseId = module.externalId?.toLowerCase() || "";
   const lowerCaseTitle = module.title.toLowerCase();
   const iconProps = { className: "w-7 h-7 text-white", strokeWidth: 1.5 };
@@ -68,7 +68,7 @@ function getModuleIcon(module: Module): JSX.Element {
 }
 
 interface ModuleCardProps {
-  module: Module;
+  module: ModuleDto; // Używamy ModuleDto zamiast Module
   index?: number; // Dla potencjalnych animacji
 }
 
@@ -76,6 +76,7 @@ export default function ModuleCard({ module, index = 0 }: ModuleCardProps) {
   const iconElement = getModuleIcon(module);
   const accentColor = module.iconColor || "#6366F1"; // Domyślny kolor (indigo)
   const lessonCount = module.lessons?.length || 0;
+  const totalXP = module.totalXP || 0; // Nowe pole z ModuleDto
 
   return (
     // Link obejmuje całą kartę
@@ -84,15 +85,9 @@ export default function ModuleCard({ module, index = 0 }: ModuleCardProps) {
       className="block group"
       passHref
     >
-      <Card
-        className="flex flex-col h-full overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-md hover:shadow-xl border dark:border-gray-700 transition-all duration-300 ease-in-out hover:-translate-y-1.5"
-        // style={{ animationDelay: `${index * 100}ms` }} // Opcjonalna animacja
-        // className="... animate-fadeIn" // Opcjonalna animacja
-      >
+      <Card className="flex flex-col h-full overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-md hover:shadow-xl border dark:border-gray-700 transition-all duration-300 ease-in-out hover:-translate-y-1.5">
         {/* Górna sekcja z ikoną i tłem */}
         <div className="p-0 relative">
-          {" "}
-          {/* Usunięto CardHeader dla prostszej struktury */}
           {/* Tło z gradientem */}
           <div
             className="h-28 sm:h-32 flex items-center justify-center rounded-t-xl relative overflow-hidden"
@@ -118,27 +113,39 @@ export default function ModuleCard({ module, index = 0 }: ModuleCardProps) {
 
         {/* Treść karty */}
         <CardContent className="flex-grow px-6 pt-12 pb-4 text-center">
-          {" "}
-          {/* Zwiększony padding-top */}
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
             {module.title}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-4">
-            {" "}
-            {/* Dodano mb-4 */}
             {module.description}
           </p>
-          {/* Liczba lekcji - subtelnie */}
-          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-center gap-1">
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>
-              {lessonCount}{" "}
-              {lessonCount === 1
-                ? "lekcja"
-                : lessonCount < 5
-                ? "lekcje"
-                : "lekcji"}
-            </span>
+          {/* Informacje o module */}
+          <div className="flex justify-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>
+                {lessonCount}{" "}
+                {lessonCount === 1
+                  ? "lekcja"
+                  : lessonCount < 5
+                  ? "lekcje"
+                  : "lekcji"}
+              </span>
+            </div>
+            {/* Dodaj informację o XP */}
+            {totalXP > 0 && (
+              <div className="flex items-center gap-1">
+                <Sigma className="w-3.5 h-3.5" />
+                <span>{totalXP} XP</span>
+              </div>
+            )}
+            {/* Dodaj informację o trudności, jeśli jest dostępna */}
+            {module.difficulty && (
+              <div className="flex items-center gap-1">
+                <Gauge className="w-3.5 h-3.5" />
+                <span>{module.difficulty}</span>
+              </div>
+            )}
           </div>
         </CardContent>
 
@@ -159,8 +166,6 @@ export function ModuleCardSkeleton() {
   return (
     <Card className="flex flex-col h-full overflow-hidden rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-md">
       <div className="p-0 relative">
-        {" "}
-        {/* Dopasowano strukturę do karty */}
         <Skeleton className="h-28 sm:h-32 w-full rounded-t-xl" />
         <div className="absolute inset-x-0 -bottom-8 flex justify-center">
           <Skeleton className="h-16 w-16 rounded-full border-4 border-white dark:border-gray-800" />
@@ -170,11 +175,13 @@ export function ModuleCardSkeleton() {
         <Skeleton className="h-6 w-3/4 mx-auto mb-3" />
         <Skeleton className="h-4 w-full mb-1.5" />
         <Skeleton className="h-4 w-5/6 mx-auto mb-4" />
-        <Skeleton className="h-3 w-1/4 mx-auto" />{" "}
-        {/* Szkielet dla liczby lekcji */}
+        <div className="flex justify-center gap-4">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-16" />
+        </div>
       </CardContent>
       <CardFooter className="px-6 pb-5 pt-1 flex justify-end">
-        <Skeleton className="h-5 w-1/3" /> {/* Szkielet dla "Przejdź" */}
+        <Skeleton className="h-5 w-1/3" />
       </CardFooter>
     </Card>
   );

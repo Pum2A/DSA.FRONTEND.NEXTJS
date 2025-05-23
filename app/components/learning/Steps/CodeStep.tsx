@@ -1,18 +1,20 @@
+"use client";
+
 import { useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 // Wybierz styl, np. oneDark lub inny pasujący do Twojego designu
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Step } from "@/app/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button"; // Użyj przycisku Shadcn
 import { Check, Clipboard, Lightbulb } from "lucide-react"; // Ikony dla kopiowania
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import rehypeRaw from "rehype-raw";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import remarkGfm from "remark-gfm";
+import { StepDto } from "@/app/types/lesson";
 
-// Propsy już nie zawierają onComplete ani isLoading
+// Zaktualizowane propsy używające StepDto
 interface CodeStepProps {
-  step: Step;
+  step: StepDto;
 }
 
 export default function CodeStep({ step }: CodeStepProps) {
@@ -111,8 +113,6 @@ export default function CodeStep({ step }: CodeStepProps) {
           </AlertDescription>
         </Alert>
       )}
-
-      {/* Przycisk "Rozumiem" został usunięty */}
     </div>
   );
 }

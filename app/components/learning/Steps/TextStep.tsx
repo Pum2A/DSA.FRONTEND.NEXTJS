@@ -1,11 +1,11 @@
-import { Step } from "@/app/types/lesson";
+import { StepDto } from "@/app/types/lesson";
 import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw"; // Dodaj dla obsługi HTML w markdown
-import remarkGfm from "remark-gfm"; // Dodaj dla lepszej obsługi markdown (np. tabele)
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
-// Propsy już nie zawierają onComplete ani isLoading
+// Zaktualizowane propsy używające StepDto
 interface TextStepProps {
-  step: Step;
+  step: StepDto;
 }
 
 export default function TextStep({ step }: TextStepProps) {
@@ -20,19 +20,10 @@ export default function TextStep({ step }: TextStepProps) {
 
       {/* Treść markdown */}
       <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]} // Uważaj na bezpieczeństwo, jeśli markdown pochodzi od użytkowników!
-          // Możesz dodać komponenty do nadpisania stylów, np. dla linków, nagłówków
-          // components={{
-          //   a: ({node, ...props}) => <a className="text-indigo-600 dark:text-indigo-400 hover:underline" {...props} />,
-          // }}
-        >
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
           {step.content || ""}
         </ReactMarkdown>
       </div>
-
-      {/* Przycisk "Kontynuuj" został usunięty - użytkownik użyje globalnego przycisku na LessonPage */}
     </div>
   );
 }

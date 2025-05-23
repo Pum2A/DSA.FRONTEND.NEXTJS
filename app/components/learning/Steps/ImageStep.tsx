@@ -1,12 +1,12 @@
-import { Step } from "@/app/types/lesson";
+import { StepDto } from "@/app/types/lesson";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 
-// Propsy już nie zawierają onComplete ani isLoading
+// Zaktualizowane propsy używające StepDto
 interface ImageStepProps {
-  step: Step;
+  step: StepDto;
 }
 
 export default function ImageStep({ step }: ImageStepProps) {
@@ -50,8 +50,6 @@ export default function ImageStep({ step }: ImageStepProps) {
           <p className="text-gray-500 italic">Brak obrazka do wyświetlenia.</p>
         )}
       </div>
-
-      {/* Przycisk "Kontynuuj" został usunięty */}
     </div>
   );
 }

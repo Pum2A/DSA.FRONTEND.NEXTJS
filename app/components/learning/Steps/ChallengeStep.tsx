@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertCircle,
   Check,
@@ -11,7 +11,12 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
-// Zakładamy istnienie runCodeTests i TestResult
+// Zaktualizowane importy typów z centralnego eksportu
+import {
+  StepCompletionData,
+  StepCompletionResult,
+  StepDto,
+} from "@/app/types/lesson";
 import { Accordion } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -20,7 +25,6 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { runCodeTests, TestResult } from "../../../lib/codeRunner";
 import { LoadingButton } from "../../ui/LoadingButton";
-import { Step } from "@/app/types/lesson";
 
 // Dynamiczne ładowanie edytora Monaco (bez zmian)
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -28,11 +32,11 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   loading: () => <p>Ładowanie edytora...</p>,
 });
 
-// Zaktualizowane propsy
+// Zaktualizowane propsy zgodne z typem StepCompletionResult
 interface ChallengeStepProps {
-  step: Step;
-  onComplete: (isCorrect: boolean) => void; // Wymaga boolean
-  isLoading?: boolean; // Globalny isLoading
+  step: StepDto;
+  onComplete: (result: StepCompletionResult) => void; // Zaktualizowane do nowego typu
+  isLoading?: boolean;
 }
 
 export default function ChallengeStep({
@@ -40,9 +44,9 @@ export default function ChallengeStep({
   onComplete,
   isLoading = false,
 }: ChallengeStepProps) {
-  // Walidacja kroku
+  // Walidacja kroku - używamy type zamiast StepType dla kompatybilności
   const isStepValid =
-    step.stepType === "challenge" &&
+    step.type === "challenge" &&
     Array.isArray(step.testCases) &&
     step.testCases.length > 0;
 
@@ -51,6 +55,16 @@ export default function ChallengeStep({
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [allTestsPassed, setAllTestsPassed] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [attempts, setAttempts] = useState<number>(0);
+
+  // Timer dla śledzenia czasu spędzonego na kroku
+  useEffect(() => {
+    const startTime = Date.now();
+    return () => {
+      setTimeSpent(Math.floor((Date.now() - startTime) / 1000));
+    };
+  }, []);
 
   // Inicjalizacja/Reset
   useEffect(() => {
@@ -66,7 +80,7 @@ export default function ChallengeStep({
       setAllTestsPassed(false);
       setIsRunningTests(false);
       setGeneralError(null);
-      if (step.stepType === "challenge") {
+      if (step.type === "challenge") {
         console.warn(
           "ChallengeStep: Krok wyzwania bez poprawnych testCases.",
           step
@@ -75,7 +89,7 @@ export default function ChallengeStep({
     }
   }, [step, isStepValid]);
 
-  // Handler zmiany kodu (bez zmian)
+  // Handler zmiany kodu
   const handleCodeChange = useCallback(
     (value: string | undefined) => {
       setUserCode(value || "");
@@ -88,12 +102,16 @@ export default function ChallengeStep({
     [testResults.length, allTestsPassed]
   );
 
-  // Handler uruchamiania testów (identyczny jak w InteractiveStep)
+  // Handler uruchamiania testów
   const handleRunTests = useCallback(async () => {
     if (!isStepValid || !step.testCases) {
       setGeneralError("Błąd konfiguracji kroku.");
       return;
     }
+
+    // Zwiększamy licznik prób
+    setAttempts((prev) => prev + 1);
+
     setIsRunningTests(true);
     setTestResults([]);
     setAllTestsPassed(false);
@@ -121,20 +139,50 @@ export default function ChallengeStep({
     }
   }, [userCode, step, isStepValid]);
 
-  // Handler dla przycisku "Kontynuuj"
+  // Handler dla przycisku "Kontynuuj" - ZAKTUALIZOWANY dla StepCompletionResult
   const handleContinue = () => {
     if (allTestsPassed) {
-      onComplete(true);
+      // Tworzymy dane o ukończeniu kroku zgodne z typem StepCompletionData
+      const completionData: StepCompletionData = {
+        answer: userCode,
+        isCorrect: true,
+        timeSpent,
+        attempts,
+        testsPassed: testResults.filter((r) => r.status === "pass").length,
+        totalTests: step.testCases?.length || 0,
+        completionStatus: true,
+      };
+
+      // Tworzymy wynik ukończenia kroku zgodny z typem StepCompletionResult
+      const completionResult: StepCompletionResult = {
+        success: true,
+        error: "",
+        xpEarned: Math.max(20, 50 - attempts * 5), // Przykładowe obliczanie XP
+        nextStepIndex: undefined, // Backend ustawi następny krok
+        isLessonCompleted: false, // Backend ustawi, czy lekcja jest ukończona
+      };
+
+      onComplete(completionResult);
     }
   };
 
   // --- Renderowanie ---
 
   // Obsługa nieprawidłowo skonfigurowanego kroku
-  if (step.stepType === "challenge" && !isStepValid) {
-    return <Alert variant="destructive">...</Alert> /* Jak w InteractiveStep */;
+  if (step.type === "challenge" && !isStepValid) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Błąd konfiguracji kroku</AlertTitle>
+        <AlertDescription>
+          Ten krok wyzwania nie zawiera poprawnie skonfigurowanych przypadków
+          testowych.
+        </AlertDescription>
+      </Alert>
+    );
   }
-  if (step.stepType !== "challenge") {
+
+  if (step.type !== "challenge") {
     return (
       <div className="p-4 text-gray-500">Krok nie jest typu wyzwania.</div>
     );
@@ -167,19 +215,13 @@ export default function ChallengeStep({
             Twoje rozwiązanie:
           </Label>
           <div className="border rounded-lg overflow-hidden shadow-sm dark:border-gray-700 h-[450px]">
-            {" "}
-            {/* Stała wysokość */}
             <MonacoEditor
               height="100%"
               language={step.language || "javascript"}
               theme="vs-dark"
               value={userCode}
               onChange={handleCodeChange}
-              options={
-                {
-                  /* opcje */
-                }
-              }
+              options={{}}
             />
           </div>
         </div>
@@ -188,8 +230,6 @@ export default function ChallengeStep({
         <div className="space-y-3">
           <h3 className="text-base font-medium">Przypadki testowe:</h3>
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-2 border dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
-            {" "}
-            {/* Scroll dla testów */}
             {step.testCases?.map((test, index) => (
               <div
                 key={test.id || index}
@@ -264,8 +304,22 @@ export default function ChallengeStep({
         </div>
       </div>
 
-      {/* Wskazówka (bez zmian) */}
-      {step.hint && <details>...</details>}
+      {/* Wskazówka */}
+      {step.hint && (
+        <details className="text-sm p-3 border rounded-lg dark:border-gray-700">
+          <summary className="font-medium cursor-pointer select-none">
+            Wskazówka
+          </summary>
+          <div className="mt-2 prose prose-sm dark:prose-invert">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeRaw]}
+            >
+              {step.hint}
+            </ReactMarkdown>
+          </div>
+        </details>
+      )}
 
       {/* Przyciski Akcji */}
       <div className="flex flex-wrap gap-4 items-center border-t dark:border-gray-700 pt-6">
@@ -292,22 +346,35 @@ export default function ChallengeStep({
         )}
       </div>
 
-      {/* Wyniki Ogólne i Szczegółowe Testów (można użyć tej samej logiki co w InteractiveStep do wyświetlania Alertów) */}
+      {/* Wyniki Ogólne */}
       {generalError && !isRunningTests && (
-        <Alert variant="destructive">...</Alert>
-      )}
-      {allTestsPassed && !isRunningTests && (
-        <Alert variant="default" className="...">
-          Sukces! Wszystkie testy przeszły.
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Błąd wykonania</AlertTitle>
+          <AlertDescription>{generalError}</AlertDescription>
         </Alert>
       )}
-      {/* Można dodać szczegółowe wyniki testów jak w InteractiveStep, jeśli to potrzebne */}
+
+      {allTestsPassed && !isRunningTests && (
+        <Alert
+          variant="default"
+          className="bg-green-50 border-green-100 dark:bg-green-900/20 dark:border-green-800"
+        >
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <AlertTitle className="text-green-800 dark:text-green-300">
+            Sukces! Wszystkie testy przeszły.
+          </AlertTitle>
+          <AlertDescription className="text-green-700 dark:text-green-400">
+            Możesz przejść do następnego kroku.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Rozwiązanie (Solution) - Accordion */}
       {step.solution && (
-        <Accordion type="single" collapsible>
-          ...
-        </Accordion> /* Jak w InteractiveStep */
+        <Accordion type="single" collapsible className="w-full">
+          {/* Zawartość accordiona z rozwiązaniem */}
+        </Accordion>
       )}
     </div>
   );

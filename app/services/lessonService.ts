@@ -30,7 +30,7 @@ export const lessonService = {
             userId: "",
             lessonId: Number(lessonId),
             isCompleted: false,
-            startedAt: new Date().toISOString(),
+            startedAt: new Date(),
             currentStepIndex: 0,
             xpEarned: 0,
           };

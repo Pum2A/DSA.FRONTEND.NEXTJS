@@ -5,8 +5,8 @@ import LessonCard, {
 } from "@/app/components/learning/LessonCard";
 import { apiService } from "@/app/lib/api";
 import { useLoadingStore } from "@/app/store/loadingStore";
-import { Module } from "@/app/types/module";
-import { UserProgress } from "@/app/types/progress";
+import { ModuleDto } from "@/app/types/module";
+import { UserProgressDto } from "@/app/types/progress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,7 +21,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 // Funkcja do wyboru ikony modułu (przykładowa)
-function getModuleIcon(module: Module | null) {
+function getModuleIcon(module: ModuleDto | null) {
+  // Updated to ModuleDto
   if (!module || !module.icon) return null;
   switch (module.icon) {
     case "package":
@@ -36,10 +37,10 @@ function getModuleIcon(module: Module | null) {
 export default function ModulePage() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const router = useRouter();
-  const [module, setModule] = useState<Module | null>(null);
+  const [module, setModule] = useState<ModuleDto | null>(null); // Updated to ModuleDto
   const [lessonProgress, setLessonProgress] = useState<
-    Record<string, UserProgress>
-  >({});
+    Record<string, UserProgressDto>
+  >({}); // Updated to UserProgressDto
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const setGlobalLoading = useLoadingStore((s) => s.setLoading);
@@ -55,7 +56,7 @@ export default function ModulePage() {
 
       const moduleData = (await apiService.lessons.getModule(
         moduleId
-      )) as Module;
+      )) as ModuleDto; // Updated to ModuleDto
       if (!moduleData) throw new Error("Module not found");
       if (!moduleData.lessons) moduleData.lessons = [];
 
@@ -71,7 +72,7 @@ export default function ModulePage() {
             );
             return {
               lessonExternalId: lesson.externalId,
-              progress: progress as UserProgress,
+              progress: progress as UserProgressDto, // Updated to UserProgressDto
             };
           } catch (err) {
             if ((err as any)?.response?.status !== 404) {
@@ -85,7 +86,7 @@ export default function ModulePage() {
         });
 
         const progressResults = await Promise.all(progressPromises);
-        const progressMap: Record<string, UserProgress> = {};
+        const progressMap: Record<string, UserProgressDto> = {}; // Updated to UserProgressDto
         progressResults.forEach((result) => {
           if (result.progress && result.lessonExternalId) {
             progressMap[result.lessonExternalId] = result.progress;

@@ -1,4 +1,4 @@
-import { Step } from "@/app/types/lesson";
+import { StepDto } from "@/app/types/lesson";
 import {
   Accordion,
   AccordionContent,
@@ -9,9 +9,9 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 
-// Propsy już nie zawierają onComplete ani isLoading
+// Zaktualizowane propsy używające StepDto
 interface ListStepProps {
-  step: Step;
+  step: StepDto;
 }
 
 export default function ListStep({ step }: ListStepProps) {
@@ -70,8 +70,6 @@ export default function ListStep({ step }: ListStepProps) {
           Brak elementów listy do wyświetlenia.
         </p>
       )}
-
-      {/* Przycisk "Rozumiem" został usunięty */}
     </div>
   );
 }

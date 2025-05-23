@@ -1,4 +1,4 @@
-import { Lesson } from "@/app/types/lesson";
+import { LessonDto } from "@/app/types/lesson";
 import {
   Card,
   CardContent,
@@ -8,16 +8,25 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils"; // Zaimportuj cn (lub odpowiednik) do łączenia klas
-import { ArrowRight, CheckCircle, Clock, Lock, Star, X } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  CheckCircle,
+  Clock,
+  Lock,
+  Star,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 
 interface LessonCardProps {
-  lesson: Lesson;
+  lesson: LessonDto;
   moduleExternalId: string;
   completed?: boolean;
   inProgress?: boolean;
-  isLocked?: boolean; // Dodajmy stan zablokowania
-  index?: number; // Dla animacji
+  isLocked?: boolean;
+  index?: number;
+  userXp?: number; // Dodane, opcjonalne pole do wyświetlania zdobytego XP
 }
 
 export default function LessonCard({
@@ -25,8 +34,9 @@ export default function LessonCard({
   moduleExternalId,
   completed = false,
   inProgress = false,
-  isLocked = false, // Domyślnie odblokowana
+  isLocked = false,
   index = 0,
+  userXp = 0, // Domyślnie 0 XP
 }: LessonCardProps) {
   const statusIcon = completed ? (
     <CheckCircle className="h-5 w-5 text-green-500" />
@@ -35,7 +45,6 @@ export default function LessonCard({
   ) : isLocked ? (
     <Lock className="h-5 w-5 text-gray-400" />
   ) : (
-    // Domyślna ikona dla lekcji do rozpoczęcia (można zmienić)
     <div className="h-5 w-5 rounded-full border-2 border-gray-400"></div>
   );
 
@@ -44,8 +53,12 @@ export default function LessonCard({
     isLocked
       ? "bg-gray-50 dark:bg-gray-800/50 opacity-70 cursor-not-allowed"
       : "bg-white dark:bg-gray-800 hover:shadow-lg hover:-translate-y-1 group"
-    // Usunięto bezpośrednie tło dla completed/inProgress, użyjemy ikon i odznak
   );
+
+  // Oblicz postęp XP (używane do ukończonych lekcji)
+  const xpProgress = completed
+    ? 100
+    : Math.min(Math.round((userXp / (lesson.xpReward || 1)) * 100), 99);
 
   const content = (
     <Card className={cardClasses}>
@@ -78,15 +91,51 @@ export default function LessonCard({
           <Clock className="w-3 h-3" />
           <span>{lesson.estimatedTime}</span>
         </div>
+
+        {/* XP z informacją o zdobytych punktach dla ukończonych/w trakcie lekcji */}
         <div className="flex items-center gap-1">
-          <Star className="w-3 h-3" />
-          <span>{lesson.xpReward} XP</span>
+          {completed ? (
+            <>
+              <Award className="w-3 h-3 text-green-500" />
+              <span className="text-green-500">{lesson.xpReward} XP</span>
+            </>
+          ) : userXp > 0 ? (
+            <>
+              <div className="relative">
+                <Star className="w-3 h-3" />
+                {/* Małe kółko z postępem XP */}
+                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+              </div>
+              <span>
+                {userXp}/{lesson.xpReward} XP
+              </span>
+            </>
+          ) : (
+            <>
+              <Star className="w-3 h-3" />
+              <span>{lesson.xpReward} XP</span>
+            </>
+          )}
         </div>
+
         {/* Wskaźnik "Przejdź" na hover dla odblokowanych */}
         {!isLocked && (
           <ArrowRight className="w-4 h-4 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300 group-hover:translate-x-0.5" />
         )}
       </CardFooter>
+
+      {/* Pasek postępu dla lekcji w trakcie */}
+      {inProgress && !completed && userXp > 0 && (
+        <div className="h-0.5 bg-gray-100 dark:bg-gray-700 w-full">
+          <div
+            className="h-full bg-blue-500"
+            style={{ width: `${xpProgress}%` }}
+          />
+        </div>
+      )}
+
+      {/* Pasek ukończenia dla zakończonych lekcji */}
+      {completed && <div className="h-0.5 w-full bg-green-500"></div>}
     </Card>
   );
 
@@ -99,7 +148,7 @@ export default function LessonCard({
   return (
     <Link
       href={`/learning/${moduleExternalId}/${lesson.externalId}`}
-      className="block h-full group" // Dodano h-full, aby link wypełniał kontener siatki
+      className="block h-full group"
       passHref
     >
       {content}

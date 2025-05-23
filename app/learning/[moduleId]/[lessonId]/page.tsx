@@ -6,8 +6,9 @@ import { LoadingButton } from "@/app/components/ui/LoadingButton";
 import { useNotifications, useUserStats } from "@/app/hooks";
 import { apiService } from "@/app/lib/api";
 import { useLoadingStore } from "@/app/store/loadingStore";
-import { Lesson, Step } from "@/app/types/lesson";
-import { UserProgress } from "@/app/types/progress";
+import { LessonDto, StepDto, StepCompletionResult } from "@/app/types/lesson";
+import { UserProgressDto } from "@/app/types/progress";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,10 +35,10 @@ export default function LessonPage() {
   }>();
   const router = useRouter();
 
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [steps, setSteps] = useState<Step[]>([]);
+  const [lesson, setLesson] = useState<LessonDto | null>(null); // Updated to LessonDto
+  const [steps, setSteps] = useState<StepDto[]>([]); // Updated to StepDto
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [progress, setProgress] = useState<UserProgressDto | null>(null); // Updated to UserProgressDto
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,9 +72,10 @@ export default function LessonPage() {
       ]);
 
       if (!lessonData) throw new Error("Lesson not found");
-      setLesson(lessonData as Lesson);
+      setLesson(lessonData as LessonDto); // Updated to LessonDto
 
-      const processedSteps = (stepsData as Step[]).map((step) => {
+      const processedSteps = (stepsData as StepDto[]).map((step) => {
+        // Updated to StepDto
         if (step.type === "quiz" && step.additionalData) {
           try {
             const quizData =
@@ -100,13 +102,14 @@ export default function LessonPage() {
       const sortedSteps = [...processedSteps].sort((a, b) => a.order - b.order);
       setSteps(sortedSteps);
 
-      setProgress(progressData as UserProgress | null);
+      setProgress(progressData as UserProgressDto | null); // Updated to UserProgressDto
       if (
         progressData &&
-        typeof (progressData as UserProgress).currentStepIndex === "number" &&
-        (progressData as UserProgress).currentStepIndex > 0
+        typeof (progressData as UserProgressDto).currentStepIndex ===
+          "number" &&
+        (progressData as UserProgressDto).currentStepIndex > 0
       ) {
-        setCurrentStepIndex((progressData as UserProgress).currentStepIndex);
+        setCurrentStepIndex((progressData as UserProgressDto).currentStepIndex);
       }
     } catch (err: any) {
       console.error("Error fetching lesson data:", err);
@@ -126,16 +129,21 @@ export default function LessonPage() {
     fetchLessonData();
   }, [fetchLessonData]);
 
-  // Obsługa kroku
-  const handleStepAction = async (isCorrect?: boolean) => {
+  // Obsługa kroku - AKTUALIZACJA DO NOWEGO StepCompletionResult
+  const handleStepAction = async (result?: StepCompletionResult) => {
     if (!lesson || steps.length === 0 || isSubmitting || isFinishing) return;
 
-    if (steps[currentStepIndex].type === "quiz" && isCorrect === false) {
+    // Sprawdź czy sukces - dla zachowania kompatybilności
+    const isSuccess = result ? result.success : true;
+
+    // W przypadku quizu, jeśli nie udało się, nie przechodź dalej
+    if (steps[currentStepIndex].type === "quiz" && !isSuccess) {
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Możesz wysłać dane ukończenia kroku na backend
       await apiService.lessons.completeStep(lessonId, currentStepIndex);
 
       if (currentStepIndex >= steps.length - 1) {
@@ -149,7 +157,11 @@ export default function LessonPage() {
               ...prev,
               currentStepIndex: currentStepIndex + 1,
               isCompleted: false,
-            } as UserProgress)
+              // Jeśli backend zwrócił xpEarned, możesz go zaktualizować tutaj
+              xpEarned: prev?.xpEarned
+                ? prev.xpEarned + (result?.xpEarned || 0)
+                : result?.xpEarned || 0,
+            } as UserProgressDto)
         );
       }
     } catch (err) {
@@ -305,8 +317,10 @@ export default function LessonPage() {
             )}
             <StepRenderer
               step={currentStep}
-              onComplete={(isCorrect) => handleStepAction(isCorrect)}
+              onComplete={handleStepAction}
               isLoading={isSubmitting}
+              currentStepIndex={currentStepIndex}
+              totalSteps={steps.length}
               key={currentStep.id}
             />
           </CardContent>

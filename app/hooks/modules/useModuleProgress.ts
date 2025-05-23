@@ -1,6 +1,6 @@
 import { moduleService } from "@/app/services/moduleService";
 import { useApiResource } from "../useApiResource";
-import { ModuleProgress } from "@/app/types/progress";
+import { ModuleProgress } from "@/app/types/module";
 
 export const useModuleProgress = (moduleId: string | null) => {
   const { data, isLoading, isError, error, mutate } =
