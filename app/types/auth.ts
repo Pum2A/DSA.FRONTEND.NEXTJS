@@ -1,57 +1,35 @@
-// auth.ts - PEŁNA ZGODNOŚĆ Z BACKEND DTO
-
-import { User, UserUpdate } from "./user";
-
-// NOWE - Response z backendu
-export interface AuthResponse {
-  succeeded: boolean;
-  token: string;
-  refreshToken: string;
-  expiration: string;
-  userId: string;
-  userName: string;
+export interface LoginRequest {
   email: string;
-  roles: string[];
-  errors: string[];
-  joinedAt: Date;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  token?: string;
+  refreshToken?: string;
+  user?: UserDto;
 }
 
 export interface RefreshTokenRequest {
-  token: string;
   refreshToken: string;
 }
 
-// ZAKTUALIZOWANE - zgodność z backend
-export interface LoginData {
+export interface UserDto {
+  id: string;
+  username: string;
   email: string;
-  password: string;
-  rememberMe: boolean;
-}
-
-export interface RegisterData {
-  email: string;
-  password: string;
-  confirmPassword: string;
-  userName: string;
-  firstName: string;
-  lastName: string;
-}
-
-// AuthState - zaktualizowany
-export interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  login: (
-    email: string,
-    password: string,
-    rememberMe?: boolean
-  ) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUser: (updatedUser: UserUpdate) => Promise<boolean>;
-  checkAuthStatus: () => Promise<void>;
-  clearError: () => void;
-  reset: () => void;
+  avatar?: string;
+  xpPoints: number;
+  currentStreak: number;
+  maxStreak: number;
+  lastActivityDate?: string;
+  emailVerified: boolean;
 }

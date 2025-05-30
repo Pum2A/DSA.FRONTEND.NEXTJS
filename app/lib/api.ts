@@ -1,46 +1,51 @@
+
 import axios, { AxiosError, AxiosResponse } from "axios";
+import { AuthResponse, LoginRequest, RefreshTokenRequest, RegisterRequest } from "../types/auth";
+import { LessonDetailsDto, LessonProgressDto, ModuleDetailsDto, ModuleListResponse, StepProgressResponse } from "../types/lessons";
+import { QuizDetailsDto, QuizResultResponse, SubmitQuizRequest, UserQuizResultsResponse } from "../types/quizzes";
+import { PublicUserProfileDto, UpdateProfileRequest, UpdateProfileResult, UserActivityRequest, UserActivityResponse, UserProfileDto, UserProgressResponse, UserRankingRequest, UserRankingResponse, UserStreakResponse, UserXpResponse } from "../types/user";
+import { refreshAuthToken } from "../utils/tokenRefresh";
 
-// 1. Odczytaj bazowy URL API (który już zawiera /api)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+// 1. Read the base API URL
+const API_BASE_URL = "http://localhost:5178/api/";
 
-// Sprawdzenie, czy zmienna środowiskowa jest ustawiona
+// Check if the environment variable is set
 if (!API_BASE_URL && typeof window !== "undefined") {
   console.error(
-    "FATAL ERROR: NEXT_PUBLIC_API_URL environment variable is not set! Should be like https://...herokuapp.com/api"
-  );
-} else if (
-  API_BASE_URL &&
-  !API_BASE_URL.endsWith("/api") &&
-  typeof window !== "undefined"
-) {
-  console.warn(
-    `Warning: NEXT_PUBLIC_API_URL (${API_BASE_URL}) does not end with /api. Paths in apiService might be incorrect.`
+    "FATAL ERROR: NEXT_PUBLIC_API_URL environment variable is not set!"
   );
 }
 
-// 2. Utwórz instancję axios z poprawną konfiguracją
+// 2. Create an axios instance with proper configuration
 const api = axios.create({
-  baseURL: API_BASE_URL, // Ustawia pełny URL backendu (np. https://.../api)
-  withCredentials: true, // KLUCZOWE: Nakazuje axios wysyłać HttpOnly cookies
+  baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json; charset=utf-8",
   },
 });
 
-// 3. UPROSZCZONY INTERCEPTOR ŻĄDAŃ (bez ręcznego dodawania tokenu)
+// 3. Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Logowanie żądania (opcjonalne)
+    // Optional request logging
     if (process.env.NODE_ENV === "development") {
-      // Pełny URL jest tworzony przez axios z baseURL + config.url
       console.log(
         `🚀 Request: ${config.method?.toUpperCase()} ${config.baseURL}${
           config.url
         } with credentials`
       );
     }
-    // NIE ustawiamy nagłówka Authorization - przeglądarka zrobi to z cookie
+    
+    // Get token from localStorage if needed (for non-cookie auth)
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    
     return config;
   },
   (error) => {
@@ -49,7 +54,7 @@ api.interceptors.request.use(
   }
 );
 
-// 4. INTERCEPTOR ODPOWIEDZI (bez zmian, ale z lepszym logowaniem)
+// 4. Response interceptor with token refresh
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     if (process.env.NODE_ENV === "development") {
@@ -57,27 +62,40 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 and we haven't tried refreshing the token yet
+    if (error.response?.status === 401 && originalRequest && !originalRequest.headers._retry) {
+      try {
+        // Mark this request as retried
+        originalRequest.headers._retry = true;
+        
+        // Try to refresh the token
+        const newToken = await refreshAuthToken();
+        
+        // Update the authorization header
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        
+        // Retry the original request with the new token
+        return api(originalRequest);
+      } catch (refreshError) {
+        // If refreshing fails, return to login
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?expired=true';
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    // Regular error handling for other cases
     if (error.response) {
-      // Loguj status, URL (z config), i dane błędu
       console.error(
         `❌ Response Error: ${
           error.response.status
         } for ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
         error.response.data
       );
-      if (error.response.status === 401) {
-        console.warn(
-          "Received 401 Unauthorized. Check if cookie was sent (Network tab -> Request Headers -> Cookie) and is valid. Backend CORS/Cookie settings might be wrong."
-        );
-        // Rozważ globalną obsługę 401, np. wylogowanie lub przekierowanie
-        // import { useAuthStore } from '../store/authStore'; // Unikaj importu store tutaj - cykliczna zależność
-        // Można emitować event lub użyć innego mechanizmu
-      } else if (error.response.status === 404) {
-        console.error(
-          "Received 404 Not Found. Verify the API path casing and existence on the backend."
-        );
-      }
     } else if (error.request) {
       console.error(
         `❌ No response received for ${error.config?.url}:`,
@@ -86,17 +104,15 @@ api.interceptors.response.use(
     } else {
       console.error("❌ Axios Request Configuration Error:", error.message);
     }
+    
     return Promise.reject(error);
   }
 );
 
-// 5. POPRAWIONE ŚCIEŻKI W EKSPORTOWANYM OBIEKCIE
-// Ścieżki są teraz WZGLĘDNE do baseURL (który kończy się na /api)
-// Zakładam nazwy kontrolerów PascalCase (Auth, Lessons, User, UserActivity) - ZWERYFIKUJ!
+// 5. Export the API service with proper paths matching our .NET backend structure
 export const apiService = {
-  // Podstawowe metody - przekazują ścieżkę względną do instancji axios
+  // Basic methods
   async get<T>(relativePath: string, params?: any): Promise<T> {
-    // axios połączy baseURL + relativePath
     const response = await api.get<T>(relativePath, { params });
     return response.data;
   },
@@ -113,43 +129,75 @@ export const apiService = {
     return response.data;
   },
 
-  // Metody specyficzne - używają ścieżek względnych do /api
-  // ZWERYFIKUJ TE ŚCIEŻKI DOKŁADNIE W SWOIM BACKENDZIE / SWAGGERZE!
-  lessons: {
-    getAllModules: () => apiService.get("Lessons/modules"), // np. https://.../api/Lessons/modules
-    getModule: (moduleId: string) =>
-      apiService.get(`Lessons/modules/${moduleId}`),
-    getLesson: (lessonId: string) => apiService.get(`Lessons/${lessonId}`),
-    getLessonProgress: (lessonId: string) =>
-      apiService.get(`Lessons/${lessonId}/progress`),
-    getModuleProgress: (moduleId: string) =>
-      apiService.get(`Lessons/modules/${moduleId}/progress`),
-    getLessonSteps: (lessonId: string) =>
-      apiService.get(`Lessons/${lessonId}/steps`),
-    completeStep: (lessonId: string, stepIndex: number) =>
-      apiService.post(`Lessons/${lessonId}/step/${stepIndex}/complete`),
-    completeLesson: (lessonId: string) =>
-      apiService.post(`Lessons/${lessonId}/complete`),
-  },
-  user: {
-    getStats: () => apiService.get("User/stats"), // np. https://.../api/User/stats
-    getProgress: () => apiService.get("User/progress"),
-    // Sprawdź kontroler dla streak/history - czy to UserActivity czy User?
-    getStreak: () => apiService.get("UserActivity/streak"), // Zakładając UserActivity
-    getActivityHistory: () => apiService.get("UserActivity/history"), // Zakładając UserActivity
-    // Ranking (dodano na podstawie poprzednich rozmów)
-    getRanking: (category: string, page: number, limit: number) =>
-      apiService.get(`User/ranking/${category}`, { params: { page, limit } }), // np. https://.../api/User/ranking/level
-  },
+  // Auth API endpoints
   auth: {
-    // Ścieżki względne do /api
-    login: (data: any) => apiService.post<any>("Auth/login", data), // np. https://.../api/Auth/login
-    register: (data: any) => apiService.post<any>("Auth/register", data),
-    logout: () => apiService.post<void>("Auth/logout"),
-    checkStatus: () => apiService.get<any>("Auth/user"), // np. https://.../api/Auth/user
-    // profile: (data: any) => apiService.put<any>("Auth/profile", data), // Jeśli istnieje
+    login: (data: LoginRequest) => 
+      apiService.post<AuthResponse>("Auth/login", data),
+    register: (data: RegisterRequest) => 
+      apiService.post<AuthResponse>("Auth/register", data),
+    logout: () => 
+      apiService.post<void>("Auth/logout"),
+    refreshToken: (data: RefreshTokenRequest) => 
+      apiService.post<AuthResponse>("Auth/refresh-token", data),
+    verifyEmail: (token: string) => 
+      apiService.post<{ success: boolean, message: string }>("Auth/verify-email", { token }),
+    forgotPassword: (email: string) => 
+      apiService.post<{ success: boolean, message: string }>("Auth/forgot-password", { email }),
+    resetPassword: (token: string, newPassword: string) => 
+      apiService.post<{ success: boolean, message: string }>("Auth/reset-password", { token, newPassword }),
+    checkAuthStatus: () => 
+      apiService.get<{ isAuthenticated: boolean, user?: UserProfileDto }>("Auth/status"),
   },
+
+  // User API endpoints
+  user: {
+  getProfile: () =>
+    apiService.get<UserProfileDto>("Users/me"),
+  updateProfile: (data: UpdateProfileRequest) =>
+    apiService.put<UpdateProfileResult>("Users/me", data),
+  getPublicProfile: (userId: string) =>
+    apiService.get<PublicUserProfileDto>(`Users/${userId}`),
+  getProgress: () =>
+    apiService.get<UserProgressResponse>("Users/me/progress"),
+  getXp: () =>
+    apiService.get<UserXpResponse>("Users/me/xp"),
+  getStreak: () =>
+    apiService.get<UserStreakResponse>("Users/me/streak"),
+  getRanking: (request: UserRankingRequest) =>
+    apiService.get<UserRankingResponse>("Users/ranking", request),
+  getActivity: (request: UserActivityRequest) =>
+    apiService.get<UserActivityResponse>("Users/me/activity", request),
+},
+
+  // Lesson and Module API endpoints
+  lessons: {
+    getAllModules: () => 
+      apiService.get<ModuleListResponse>("Lessons/modules"),
+    getModule: (moduleId: string) => 
+      apiService.get<ModuleDetailsDto>(`Lessons/modules/${moduleId}`),
+    getLesson: (lessonId: string) => 
+      apiService.get<LessonDetailsDto>(`Lessons/${lessonId}`),
+    getLessonProgress: (lessonId: string) => 
+      apiService.get<LessonProgressDto>(`Lessons/${lessonId}/progress`),
+    completeStep: (lessonId: string, stepId: string) => 
+      apiService.post<StepProgressResponse>(`Lessons/${lessonId}/steps/${stepId}/complete`),
+    completeLesson: (lessonId: string) => 
+      apiService.post<{ success: boolean, message: string, xpEarned: number }>(`Lessons/${lessonId}/complete`),
+  },
+
+  // Quiz API endpoints
+  quiz: {
+    getQuiz: (quizId: string) => 
+      apiService.get<QuizDetailsDto>(`Quizzes/${quizId}`),
+    submitQuiz: (data: SubmitQuizRequest) => 
+      apiService.post<QuizResultResponse>(`Quizzes/${data.quizId}/submit`, data),
+    getQuizResults: (quizId: string) => 
+      apiService.get<UserQuizResultsResponse>(`Quizzes/${quizId}/results`),
+    getModuleQuizzes: (moduleId: string) => 
+      apiService.get<{ quizzes: QuizDetailsDto[] }>(`Modules/${moduleId}/quizzes`),
+    getUserQuizzes: () => 
+      apiService.get<{ quizzes: QuizDetailsDto[] }>("User/quizzes"),
+  }
 };
 
-// Nie eksportuj domyślnie 'api', aby wymusić użycie 'apiService' z poprawnymi ścieżkami
-// export default api;
+export default apiService;
