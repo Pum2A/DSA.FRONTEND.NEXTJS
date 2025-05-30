@@ -11,49 +11,46 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register, error: authError } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+  const { register, error: authError, setError } = useAuth();
+  const [error, setLocalError] = useState<string | null>(null);
   const router = useRouter();
 
   const validateForm = () => {
     if (!email || !username || !password || !confirmPassword) {
-      setError('All fields are required');
+      setLocalError('All fields are required');
       return false;
     }
-    
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setLocalError('Password must be at least 6 characters');
       return false;
     }
-    
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setLocalError('Passwords do not match');
       return false;
     }
-    
     return true;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLocalError(null);
     setError(null);
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      const success = await register(email, username, password);
+      const success = await register(email, username, password, confirmPassword);
       if (success) {
-        // If the auth provider doesn't automatically redirect
         router.push('/dashboard');
       } else {
-        setError(authError || 'Registration failed. Please try again.');
+        setLocalError(authError || 'Registration failed. Please try again.');
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setLocalError('An unexpected error occurred. Please try again.');
       console.error('Registration error:', err);
     } finally {
       setLoading(false);
@@ -67,15 +64,13 @@ export default function Register() {
           Create your account
         </h2>
       </div>
-
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {error && (
+          {(error || authError) && (
             <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 rounded">
-              {error}
+              {error || authError}
             </div>
           )}
-
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -94,7 +89,6 @@ export default function Register() {
                 />
               </div>
             </div>
-
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                 Username
@@ -112,7 +106,6 @@ export default function Register() {
                 />
               </div>
             </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
@@ -130,7 +123,6 @@ export default function Register() {
                 />
               </div>
             </div>
-
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
@@ -148,7 +140,6 @@ export default function Register() {
                 />
               </div>
             </div>
-
             <div>
               <button
                 type="submit"
@@ -159,7 +150,6 @@ export default function Register() {
               </button>
             </div>
           </form>
-
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -171,7 +161,6 @@ export default function Register() {
                 </span>
               </div>
             </div>
-
             <div className="mt-6 grid grid-cols-1 gap-3">
               <div>
                 <Link href="/login" className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">

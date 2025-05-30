@@ -13,12 +13,11 @@ function LoginForm() {
   const { login, error: authError } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  
+
   // Get URL params in a client component
   const searchParams = new URLSearchParams(
     typeof window !== 'undefined' ? window.location.search : ''
   );
-  
   const redirect = searchParams.get('redirect');
   const registered = searchParams.get('registered');
   const expired = searchParams.get('expired');
@@ -27,7 +26,7 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    
+
     if (!email || !password) {
       setError('Please fill in all fields');
       setLoading(false);
@@ -51,7 +50,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">      
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Sign in to your account
@@ -65,13 +64,13 @@ function LoginForm() {
               Registration successful! Please log in with your credentials.
             </div>
           )}
-          
+
           {expired && (
             <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded">
               Your session has expired. Please log in again.
             </div>
           )}
-          
+
           {error && (
             <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 rounded">
               {error}
