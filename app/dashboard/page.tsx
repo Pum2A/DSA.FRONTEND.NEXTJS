@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/app/context/AuthContext";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +23,6 @@ import {
   Star
 } from "lucide-react";
 import Link from "next/link";
-
 import { ActivityFeed } from "../components/dashboard/ActivityFeed";
 import { ModulesList } from "../components/dashboard/ModulesList";
 import { RecommendedLessons } from "../components/dashboard/RecommendedLessons";
@@ -30,6 +30,9 @@ import { StreakCalendar } from "../components/dashboard/StreakCalendar";
 import { UserStats } from "../components/dashboard/UserStats";
 import Navbar from "../components/Navbar";
 import { getMe } from "../features/auth/api";
+import { ModuleDto } from "../types/api/moduleTypes";
+import { UserProgressResponse } from "../types/api/progressTypes";
+import { UserDto } from "../types/api/userTypes";
 
 export default function DashboardPage() {
   const { user: authUser, isLoading: authLoading } = useAuth();
@@ -39,8 +42,7 @@ export default function DashboardPage() {
     data: queryUser,
     isLoading: queryLoading,
     error,
-    refetch,
-  } = useQuery({
+  } = useQuery<UserDto>({
     queryKey: ["dashboardUser", authUser?.id],
     queryFn: getMe,
     enabled: !!authUser && !authLoading,
@@ -51,34 +53,46 @@ export default function DashboardPage() {
   const {
     data: progressData,
     isLoading: progressLoading,
-  } = useQuery({
+  } = useQuery<UserProgressResponse>({
     queryKey: ["userProgress"],
     queryFn: async () => {
-      const response = await fetch("/api/Lessons/progress", {
-        credentials: "include"
-      });
-      if (!response.ok) throw new Error("Failed to fetch progress data");
-      return response.json();
+      try {
+        const response = await fetch("/api/Lessons/progress", {
+          credentials: "include"
+        });
+        if (!response.ok) throw new Error("Failed to fetch progress data");
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching user progress:", error);
+        throw error;
+      }
     },
     enabled: !!authUser && !authLoading,
     staleTime: 1000 * 60 * 5, // Refresh every 5 minutes if inactive
+    retry: 1,
   });
 
   // Fetch modules for the modules tab
   const {
     data: modulesData,
     isLoading: modulesLoading,
-  } = useQuery({
+  } = useQuery<ModuleDto[]>({
     queryKey: ["modules"],
     queryFn: async () => {
-      const response = await fetch("/api/Lessons/modules", {
-        credentials: "include"
-      });
-      if (!response.ok) throw new Error("Failed to fetch modules");
-      return response.json();
+      try {
+        const response = await fetch("/api/Lessons/modules", {
+          credentials: "include"
+        });
+        if (!response.ok) throw new Error("Failed to fetch modules");
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching modules:", error);
+        throw error;
+      }
     },
     enabled: !!authUser && !authLoading,
     staleTime: 1000 * 60 * 15, // Refresh every 15 minutes if inactive
+    retry: 1,
   });
 
   const displayUser = queryUser || authUser;
@@ -123,7 +137,7 @@ export default function DashboardPage() {
 
   // Calculate overall progress
   const overallProgress = progressData 
-    ? Math.round((progressData.completedLessons / progressData.totalLessons) * 100) || 0
+    ? progressData.overallProgressPercentage || 0
     : 0;
 
   return (
@@ -170,7 +184,13 @@ export default function DashboardPage() {
               <span className="text-sm text-brand-50">Całkowity postęp</span>
               <span className="text-sm font-medium text-brand-50">{overallProgress}%</span>
             </div>
-            <Progress value={overallProgress} className="h-2 bg-white/20 [&>div]:bg-white" />
+            <Progress 
+              value={overallProgress} 
+              className="h-2 bg-white/20" 
+              style={{ 
+                "--progress-foreground": "white" 
+              } as React.CSSProperties}
+            />
           </div>
         </div>
         
@@ -204,7 +224,7 @@ export default function DashboardPage() {
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* User stats card */}
-              <UserStats user={displayUser} progressData={progressData} />
+              <UserStats user={displayUser as UserDto} progressData={progressData} />
               
               {/* Streak calendar card */}
               <StreakCalendar streak={displayUser.currentStreak || 0} />
@@ -219,7 +239,7 @@ export default function DashboardPage() {
           
           {/* Modules tab */}
           <TabsContent value="modules">
-            <ModulesList modules={modulesData} isLoading={modulesLoading} />
+            <ModulesList modules={modulesData || []} isLoading={modulesLoading} />
           </TabsContent>
           
           {/* Activity tab */}

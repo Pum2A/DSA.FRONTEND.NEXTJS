@@ -1,5 +1,6 @@
 "use client";
 
+import { ModuleDto } from "@/app/types/api/moduleTypes";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -9,11 +10,12 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, CheckCircle, ChevronRight, Lock } from "lucide-react";
+import { BookOpen, CheckCircle, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 interface ModulesListProps {
-  modules: any[];
+  // Accepts either undefined or an array, so it's always safe to map.
+  modules?: ModuleDto[];
   isLoading: boolean;
 }
 
@@ -46,8 +48,10 @@ export function ModulesList({ modules, isLoading }: ModulesListProps) {
     );
   }
 
-  // If no modules, show placeholder
-  if (!modules || modules.length === 0) {
+  // Always default to empty array for mapping!
+  const safeModules = Array.isArray(modules) ? modules : [];
+
+  if (safeModules.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -68,92 +72,56 @@ export function ModulesList({ modules, isLoading }: ModulesListProps) {
 
   return (
     <div className="space-y-8">
-      {modules.map((module) => (
-        <Card key={module.id}>
-          <CardHeader>
-            <CardTitle>{module.title}</CardTitle>
-            <CardDescription>{module.description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Module stats */}
-              <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                <div className="flex gap-6">
-                  <div className="flex items-center">
-                    <BookOpen className="h-4 w-4 mr-1" />
-                    <span>{module.lessonsCount || 0} lekcji</span>
-                  </div>
-                  <div className="flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    <span>{module.completedLessons || 0} ukończonych</span>
-                  </div>
-                </div>
-                <div>
-                  Postęp: {module.progress || 0}%
-                </div>
-              </div>
+      {safeModules.map((module) => {
+        // Postęp można wyliczyć, jeśli API zwraca np. completedLessonCount:
+        const completed = module.completedLessonCount || 0;
+        const total = module.lessonCount || 0;
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-              {/* Progress bar */}
-              <Progress value={module.progress || 0} className="h-2" />
-
-              {/* Lesson list */}
-              <div className="mt-6 space-y-3">
-                {(module.lessons || []).slice(0, 3).map((lesson: any) => (
-                  <div 
-                    key={lesson.id} 
-                    className={`p-4 border rounded-lg flex justify-between items-center ${
-                      lesson.isLocked 
-                        ? 'bg-gray-50 dark:bg-gray-800/50 opacity-80' 
-                        : 'hover:border-brand-300 dark:hover:border-brand-700 transition-colors'
-                    }`}
-                  >
+        return (
+          <Card key={module.id}>
+            <CardHeader>
+              <CardTitle>{module.title}</CardTitle>
+              <CardDescription>{module.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Module stats */}
+                <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                  <div className="flex gap-6">
                     <div className="flex items-center">
-                      {lesson.isCompleted ? (
-                        <CheckCircle className="h-5 w-5 mr-3 text-green-500" />
-                      ) : lesson.isLocked ? (
-                        <Lock className="h-5 w-5 mr-3 text-gray-400" />
-                      ) : (
-                        <BookOpen className="h-5 w-5 mr-3 text-brand-500" />
-                      )}
-                      <span className={lesson.isLocked ? "text-muted-foreground" : ""}>
-                        {lesson.title}
-                      </span>
+                      <BookOpen className="h-4 w-4 mr-1" />
+                      <span>{module.lessonCount || 0} lekcji</span>
                     </div>
-                    
-                    {lesson.isLocked ? (
-                      <Button size="sm" variant="outline" disabled>Zablokowana</Button>
-                    ) : lesson.isCompleted ? (
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/lessons/${lesson.id}`}>Powtórz</Link>
-                      </Button>
-                    ) : (
-                      <Button size="sm" asChild>
-                        <Link href={`/lessons/${lesson.id}`}>
-                          {lesson.inProgress ? "Kontynuuj" : "Rozpocznij"}
-                        </Link>
-                      </Button>
-                    )}
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      <span>{completed} ukończonych</span>
+                    </div>
                   </div>
-                ))}
+                  <div>
+                    Postęp: {percentage}%
+                  </div>
+                </div>
 
-                {/* More lessons indicator */}
-                {(module.lessons || []).length > 3 && (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-between" 
-                    asChild
-                  >
-                    <Link href={`/modules/${module.id}`}>
-                      <span>Zobacz wszystkie lekcje ({module.lessons.length})</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                )}
+                {/* Progress bar */}
+                <Progress value={percentage} className="h-2" />
+
+                {/* Link to module page */}
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between mt-4" 
+                  asChild
+                >
+                  <Link href={`/modules/${module.id}`}>
+                    <span>Przejdź do modułu</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

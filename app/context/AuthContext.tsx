@@ -33,6 +33,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   error: string | null;
   clearError: () => void;
+  updateUserData: (userData: UserDto) => void; // Add this line
+
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,6 +85,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener("forceLogout", handleForceLogout);
     };
   }, [router]); // Usunięto toast z dependency array
+
+  const updateUserData = (userData: UserDto) => {
+  setUser(userData);
+};
 
   const login = async (credentials: LoginRequest) => {
     setIsLoading(true);
@@ -141,6 +147,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  
+
   const logout = async () => {
     setIsLoading(true);
     setAuthApiError(null);
@@ -175,6 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isAuthenticated: !!user,
         error: authApiError,
         clearError,
+        updateUserData 
       }}
     >
       {children}

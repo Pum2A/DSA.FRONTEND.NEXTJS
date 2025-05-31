@@ -104,3 +104,38 @@ export interface QuizResultResponse {
   startedAt: string; // string ISO Date
   completedAt: string; // string ISO Date
 }
+
+export interface QuizAnswer {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  text: string;
+  isMultiAnswer: boolean;
+  answers: QuizAnswer[];
+  explanation?: string;
+}
+
+export interface QuizResults {
+  quizId: string;
+  quizTitle: string;
+  moduleId: string;
+  score: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  totalQuestions: number;
+  xpGained: number;
+  completedAt: string;
+  nextModuleId?: string;
+  questions: {
+    id: string;
+    text: string;
+    isCorrect: boolean;
+    userAnswer: string[];
+    correctAnswer: string[];
+    explanation?: string;
+    answers: QuizAnswer[];
+  }[];
+}

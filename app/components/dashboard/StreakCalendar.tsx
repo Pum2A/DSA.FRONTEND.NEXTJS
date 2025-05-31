@@ -1,6 +1,8 @@
 "use client";
 
+import { StreakDayDto, UserStreakResponse } from "@/app/types/api/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
 import React from "react";
 
@@ -9,32 +11,56 @@ interface StreakCalendarProps {
 }
 
 export function StreakCalendar({ streak }: StreakCalendarProps) {
-  // Generate last 30 days for the calendar
-  const generateCalendarDays = () => {
-    const days = [];
-    const today = new Date();
-    
-    // Mock data - in a real app, you'd get the actual activity days from API
-    const activeDays = [1, 2, 3, 5, 7, 8, 9, 10, 14, 15, 18, 19, 20];
-    
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(today.getDate() - i);
+  // In a real app, fetch user streak data from an API
+  const { data: streakData } = useQuery<UserStreakResponse>({
+    queryKey: ["userStreak"],
+    queryFn: async () => {
+      // This would be a real API call in production
+      // For now, let's simulate a response
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Check if this date is in our active days (today - days)
-      const dayDiff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-      const isActive = activeDays.includes(dayDiff) || dayDiff === 0; // Today is always active
+      const today = new Date();
+      const recentDays: StreakDayDto[] = [];
       
-      days.push({
-        date,
-        isActive,
-      });
-    }
-    
-    return days;
-  };
-  
-  const calendarDays = generateCalendarDays();
+      // Generate mock data for the last 30 days
+      // This simulates active days (would come from API)
+      const activeDays = [1, 2, 3, 5, 7, 8, 9, 10, 14, 15, 18, 19, 20];
+      
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(today.getDate() - i);
+        
+        // Format date as ISO string but only the date part
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Determine if this day was active based on our mock data
+        const dayDiff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+        const wasActive = activeDays.includes(dayDiff) || dayDiff === 0; // Today is always active
+        
+        recentDays.push({
+          date: dateStr,
+          wasActive
+        });
+      }
+      
+      return {
+        currentStreak: streak,
+        maxStreak: Math.max(streak, 10), // Mock data
+        lastActivityDate: today.toISOString(),
+        isActiveToday: true,
+        daysUntilStreakLost: 1,
+        recentDays
+      };
+    },
+  });
+
+  // Generate calendar grid from the streak data
+  const calendarDays = streakData?.recentDays?.map(day => {
+    return {
+      date: new Date(day.date),
+      isActive: day.wasActive
+    };
+  }) || [];
 
   return (
     <Card>
@@ -60,9 +86,9 @@ export function StreakCalendar({ streak }: StreakCalendarProps) {
           ))}
           
           {/* Calendar squares */}
-          {calendarDays.map((day, i) => {
+          {calendarDays.length > 0 && calendarDays.map((day, i) => {
             // Adjust so the first day aligns with the correct day of week
-            const firstDayOffset = new Date(calendarDays[0].date).getDay() - 1;
+            const firstDayOffset = calendarDays[0]?.date.getDay() - 1;
             const offset = i === 0 ? (firstDayOffset === -1 ? 6 : firstDayOffset) : 0;
             
             return (

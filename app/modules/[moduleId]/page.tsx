@@ -1,6 +1,9 @@
 "use client";
 
 import Navbar from "@/app/components/Navbar";
+import { LessonDto } from "@/app/types/api/lessonTypes";
+import { ModuleDetailsDto, ModuleProgressDto } from "@/app/types/api/moduleTypes";
+
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -18,38 +21,27 @@ import { useParams } from "next/navigation";
 export default function ModulePage() {
   const { moduleId } = useParams() as { moduleId: string };
 
-  const { data: module, isLoading } = useQuery({
+  // Fetch module details
+  const { data: moduleDetails, isLoading: moduleLoading } = useQuery<ModuleDetailsDto>({
     queryKey: ["module", moduleId],
     queryFn: async () => {
-      const response = await fetch(`/api/Lessons/modules/${moduleId}`, {
-        credentials: "include",
-      });
+      try {
+        const response = await fetch(`/api/Lessons/modules/${moduleId}`, {
+          credentials: "include",
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch module");
+        if (!response.ok) throw new Error("Failed to fetch module");
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching module:", error);
+        throw error;
       }
-
-      return response.json();
     },
   });
 
-  const { data: lessons, isLoading: lessonsLoading } = useQuery({
-    queryKey: ["moduleLessons", moduleId],
-    queryFn: async () => {
-      const response = await fetch(`/api/Lessons/modules/${moduleId}/lessons`, {
-        credentials: "include",
-      });
+  const isLoading = moduleLoading;
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch module lessons");
-      }
-
-      return response.json();
-    },
-    enabled: !!moduleId,
-  });
-
-  if (isLoading || lessonsLoading) {
+  if (isLoading) {
     return (
       <div>
         <Navbar />
@@ -73,6 +65,14 @@ export default function ModulePage() {
     );
   }
 
+  // Extract data
+  const module = moduleDetails || {} as ModuleDetailsDto;
+  const lessons = module.lessons || [];
+  const progress = module.progress || {} as ModuleProgressDto;
+  
+  // Calculate progress percentage
+  const progressPercentage = progress?.progressPercentage || 0;
+
   return (
     <div>
       <Navbar />
@@ -85,16 +85,27 @@ export default function ModulePage() {
             </Link>
           </Button>
           
-          <h1 className="text-3xl font-bold">{module?.title}</h1>
-          <p className="text-muted-foreground mt-2">{module?.description}</p>
+          <div className="flex items-center gap-4">
+            {module.iconUrl && (
+              <img 
+                src={module.iconUrl} 
+                alt={module.title}
+                className="w-12 h-12 rounded-lg"
+              />
+            )}
+            <div>
+              <h1 className="text-3xl font-bold">{module.title}</h1>
+              <p className="text-muted-foreground mt-2">{module.description}</p>
+            </div>
+          </div>
           
           {/* Module progress */}
           <div className="mt-6">
             <div className="flex justify-between text-sm mb-2">
               <span>Postęp modułu</span>
-              <span className="font-medium">{module?.progress || 0}%</span>
+              <span className="font-medium">{progressPercentage}%</span>
             </div>
-            <Progress value={module?.progress || 0} className="h-2" />
+            <Progress value={progressPercentage} className="h-2" />
           </div>
         </div>
         
@@ -107,50 +118,62 @@ export default function ModulePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {lessons?.map((lesson: any) => (
-                <div 
-                  key={lesson.id} 
-                  className={`p-4 border rounded-lg flex justify-between items-center ${
-                    lesson.isLocked 
-                      ? 'bg-gray-50 dark:bg-gray-800/50 opacity-80' 
-                      : 'hover:border-brand-300 dark:hover:border-brand-700 transition-colors'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    {lesson.isCompleted ? (
-                      <CheckCircle className="h-5 w-5 mr-3 text-green-500" />
-                    ) : lesson.isLocked ? (
-                      <Lock className="h-5 w-5 mr-3 text-gray-400" />
-                    ) : (
-                      <BookOpen className="h-5 w-5 mr-3 text-brand-500" />
-                    )}
-                    <div>
-                      <div className={lesson.isLocked ? "text-muted-foreground" : ""}>
-                        {lesson.title}
-                      </div>
-                      {lesson.duration && (
-                        <div className="text-xs text-muted-foreground">
-                          Czas trwania: {lesson.duration}
-                        </div>
+              {lessons?.map((lesson: LessonDto) => {
+                const isCompleted = !!lesson.isCompleted;
+                const isLocked = !lesson.isActive;
+                const lessonsCount = lesson.stepCount || 0;
+                
+                return (
+                  <div 
+                    key={lesson.id} 
+                    className={`p-4 border rounded-lg flex justify-between items-center ${
+                      isLocked 
+                        ? 'bg-gray-50 dark:bg-gray-800/50 opacity-80' 
+                        : 'hover:border-brand-300 dark:hover:border-brand-700 transition-colors'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      {isCompleted ? (
+                        <CheckCircle className="h-5 w-5 mr-3 text-green-500" />
+                      ) : isLocked ? (
+                        <Lock className="h-5 w-5 mr-3 text-gray-400" />
+                      ) : (
+                        <BookOpen className="h-5 w-5 mr-3 text-brand-500" />
                       )}
+                      <div>
+                        <div className={isLocked ? "text-muted-foreground" : ""}>
+                          {lesson.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center">
+                          <span>{lessonsCount} kroków</span>
+                          {lesson.completedStepCount && lessonsCount > 0 && (
+                            <span className="ml-2">
+                              • Postęp: {Math.round((lesson.completedStepCount / lessonsCount) * 100)}%
+                            </span>
+                          )}
+                          {lesson.xpReward > 0 && (
+                            <span className="ml-2">• {lesson.xpReward} XP</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                    
+                    {isLocked ? (
+                      <Button size="sm" variant="outline" disabled>Zablokowana</Button>
+                    ) : isCompleted ? (
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`/lessons/${lesson.id}`}>Powtórz</Link>
+                      </Button>
+                    ) : (
+                      <Button size="sm" asChild>
+                        <Link href={`/lessons/${lesson.id}`}>
+                          {lesson.completedStepCount && lesson.completedStepCount > 0 ? "Kontynuuj" : "Rozpocznij"}
+                        </Link>
+                      </Button>
+                    )}
                   </div>
-                  
-                  {lesson.isLocked ? (
-                    <Button size="sm" variant="outline" disabled>Zablokowana</Button>
-                  ) : lesson.isCompleted ? (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link href={`/lessons/${lesson.id}`}>Powtórz</Link>
-                    </Button>
-                  ) : (
-                    <Button size="sm" asChild>
-                      <Link href={`/lessons/${lesson.id}`}>
-                        {lesson.inProgress ? "Kontynuuj" : "Rozpocznij"}
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
               
               {(!lessons || lessons.length === 0) && (
                 <div className="text-center py-8 text-muted-foreground">
@@ -162,27 +185,35 @@ export default function ModulePage() {
         </Card>
         
         {/* Module quiz if available */}
-        {module?.hasQuiz && (
+        {module.quizzes && module.quizzes.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Quiz modułowy</CardTitle>
+              <CardTitle>Quizy modułowe</CardTitle>
               <CardDescription>
                 Sprawdź swoją wiedzę z całego modułu
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p>Quiz: {module.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {module.quizCompleted ? "Ukończony" : "Nieukończony"}
-                  </p>
-                </div>
-                <Button asChild>
-                  <Link href={`/quiz/modules/${moduleId}`}>
-                    {module.quizCompleted ? "Powtórz quiz" : "Rozpocznij quiz"}
-                  </Link>
-                </Button>
+              <div className="space-y-3">
+                {module.quizzes.map((quiz) => (
+                  <div key={quiz.id} className="flex justify-between items-center p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{quiz.title}</p>
+                      <div className="text-xs text-muted-foreground flex items-center">
+                        <span>{quiz.questionCount} pytań</span>
+                        <span className="mx-2">•</span>
+                        <span>{Math.floor(quiz.timeLimit / 60)} min</span>
+                        <span className="mx-2">•</span>
+                        <span>{quiz.xpReward} XP</span>
+                      </div>
+                    </div>
+                    <Button asChild>
+                      <Link href={`/quiz/${quiz.id}`}>
+                        {quiz.isCompleted ? "Powtórz quiz" : "Rozpocznij quiz"}
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

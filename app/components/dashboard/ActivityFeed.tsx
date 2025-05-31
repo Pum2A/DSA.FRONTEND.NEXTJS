@@ -1,5 +1,6 @@
 "use client";
 
+import { ActivityType, UserActivityItemDto } from "@/app/types/api/userTypes";
 import {
     Card,
     CardContent,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery } from "@tanstack/react-query";
-import { Book, CheckCircle, Clock, Star } from "lucide-react";
+import { Book, CheckCircle, Clock, Star, Trophy } from "lucide-react";
 
 interface ActivityFeedProps {
   userId: string;
@@ -17,65 +18,85 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ userId, limit = 10 }: ActivityFeedProps) {
-  const { data: activities, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["activities", userId, limit],
-    queryFn: async () => {
-      // This is a mock as there's no direct endpoint for activities
-      // In a real app, you'd fetch from a proper endpoint
-      const response = await fetch(`/api/Lessons/progress?limit=${limit}`, {
-        credentials: "include",
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch activities");
+    queryFn: async (): Promise<{ activities: UserActivityItemDto[] }> => {
+      try {
+        // In a real implementation, you'd fetch from your API
+        // This is mocking the fetch, as we don't have a direct endpoint for activities
+        const response = await fetch(`/api/User/activities?limit=${limit}`, {
+          credentials: "include",
+        });
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch activities");
+        }
+        
+        // Mock data for now - replace with actual API response
+        return {
+          activities: [
+            {
+              id: "1",
+              type: ActivityType.LessonCompleted,
+              title: "Wprowadzenie do tablic",
+              description: "Ukończyłeś lekcję Wprowadzenie do tablic",
+              xpEarned: 15,
+              createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+              relatedEntityId: "lesson-1",
+              relatedEntityType: "Lesson"
+            },
+            {
+              id: "2",
+              type: ActivityType.QuizCompleted,
+              title: "Quiz: Tablice i podstawowe operacje",
+              description: "Ukończyłeś quiz z wynikiem 85%",
+              xpEarned: 25,
+              createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+              relatedEntityId: "quiz-1",
+              relatedEntityType: "Quiz"
+            },
+            {
+              id: "3",
+              type: ActivityType.LessonCompleted,
+              title: "Złożoność czasowa algorytmów",
+              description: "Ukończyłeś lekcję Złożoność czasowa algorytmów",
+              xpEarned: 20,
+              createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+              relatedEntityId: "lesson-2",
+              relatedEntityType: "Lesson"
+            },
+            {
+              id: "4",
+              type: ActivityType.StreakMilestone,
+              title: "3 dni nauki z rzędu!",
+              description: "Utrzymałeś passę przez 3 dni!",
+              xpEarned: 30,
+              createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+              relatedEntityId: undefined,
+              relatedEntityType: undefined
+            },
+          ].slice(0, limit),
+        };
+      } catch (error) {
+        console.error("Failed to fetch activities:", error);
+        throw error;
       }
-      
-      // Mock data for now - replace with actual API response
-      return {
-        activities: [
-          {
-            id: "1",
-            type: "lesson_completed",
-            title: "Wprowadzenie do tablic",
-            date: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-            xpGained: 15,
-          },
-          {
-            id: "2",
-            type: "quiz_completed",
-            title: "Quiz: Tablice i podstawowe operacje",
-            date: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-            xpGained: 25,
-            score: 85,
-          },
-          {
-            id: "3",
-            type: "lesson_completed",
-            title: "Złożoność czasowa algorytmów",
-            date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-            xpGained: 20,
-          },
-          {
-            id: "4",
-            type: "streak_milestone",
-            title: "3 dni nauki z rzędu!",
-            date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-            xpGained: 30,
-          },
-        ],
-      };
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  const getActivityIcon = (type: string) => {
+  const getActivityIcon = (type: ActivityType) => {
     switch (type) {
-      case "lesson_completed":
+      case ActivityType.LessonCompleted:
         return <Book className="h-4 w-4 text-blue-500" />;
-      case "quiz_completed":
+      case ActivityType.QuizCompleted:
         return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "streak_milestone":
+      case ActivityType.StreakMilestone:
         return <Star className="h-4 w-4 text-amber-500" />;
+      case ActivityType.LevelUp:
+        return <Trophy className="h-4 w-4 text-purple-500" />;
+      case ActivityType.ModuleCompleted:
+        return <CheckCircle className="h-4 w-4 text-teal-500" />;
       default:
         return <Clock className="h-4 w-4 text-gray-500" />;
     }
@@ -132,9 +153,9 @@ export function ActivityFeed({ userId, limit = 10 }: ActivityFeedProps) {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[320px] pr-4">
-          {activities?.activities?.length ? (
+          {data?.activities?.length ? (
             <div className="space-y-5">
-              {activities.activities.map((activity) => (
+              {data.activities.map((activity: UserActivityItemDto) => (
                 <div key={activity.id} className="flex items-start gap-4">
                   <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-2 mt-0.5">
                     {getActivityIcon(activity.type)}
@@ -143,19 +164,15 @@ export function ActivityFeed({ userId, limit = 10 }: ActivityFeedProps) {
                     <div className="flex items-center justify-between">
                       <p className="font-medium">{activity.title}</p>
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(activity.date)}
+                        {formatDate(activity.createdAt)}
                       </span>
                     </div>
+                    <p className="text-sm text-muted-foreground">
+                      {activity.description}
+                    </p>
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Star className="h-3.5 w-3.5 mr-1 text-amber-500" />
-                      <span>+{activity.xpGained} XP</span>
-                      
-                      {activity.score && (
-                        <div className="ml-3 flex items-center">
-                          <CheckCircle className="h-3.5 w-3.5 mr-1 text-green-500" />
-                          <span>Wynik: {activity.score}%</span>
-                        </div>
-                      )}
+                      <span>+{activity.xpEarned} XP</span>
                     </div>
                   </div>
                 </div>

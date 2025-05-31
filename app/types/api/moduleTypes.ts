@@ -2,6 +2,7 @@ import { LessonDto } from "./lessonTypes";
 import { QuizListItemDto } from "./quizTypes";
 
 export interface ModuleDto {
+  completedLessonCount?: number;
   id: string;
   title: string;
   description: string;
@@ -10,6 +11,7 @@ export interface ModuleDto {
   isActive: boolean;
   lessonCount: number;
   quizCount: number;
+
 }
 
 export interface ModuleListResponse {
@@ -35,4 +37,5 @@ export interface ModuleDetailsDto {
   lessons: LessonDto[];
   quizzes: QuizListItemDto[];
   progress?: ModuleProgressDto; // Postęp użytkownika w tym module
+
 }
