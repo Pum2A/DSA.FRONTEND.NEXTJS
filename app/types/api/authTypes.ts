@@ -32,3 +32,5 @@ export interface AuthResponse {
 export interface RefreshTokenRequest {
   refreshToken: string;
 }
+
+

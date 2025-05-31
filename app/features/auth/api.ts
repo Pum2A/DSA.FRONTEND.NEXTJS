@@ -1,44 +1,79 @@
+import { AuthResponse } from "@/app/types/api/authTypes";
+import { UserDto } from "@/app/types/api/userTypes";
 import axiosInstance from "@/app/utils/axiosRefreshTokenInstance";
 import { LoginFormData } from "./schema/loginSchema";
 import { RegisterFormData } from "./schema/registerSchema";
 
-export async function loginUser(credentials: LoginFormData) {
-  const response = await axiosInstance.post("Auth/login", credentials);
-  return response.data; // Zwraca dane użytkownika lub potwierdzenie
-}
-
-export async function registerUser(data: RegisterFormData) {
-  const response = await axiosInstance.post("Auth/register", data);
+/** Log in the user and set cookies via backend */
+export async function loginUser(credentials: LoginFormData): Promise<AuthResponse> {
+  const response = await axiosInstance.post<AuthResponse>("/api/Auth/login", credentials);
   return response.data;
 }
 
-export async function logoutUser() {
+/** Register a new user */
+export async function registerUser(data: RegisterFormData): Promise<AuthResponse> {
+  const response = await axiosInstance.post<AuthResponse>("/api/Auth/register", data);
+  return response.data;
+}
+
+/** Log out the current user */
+export async function logoutUser(): Promise<void> {
   try {
-    await axiosInstance.post("Auth/logout");
+    await axiosInstance.post("/api/Auth/logout");
   } catch (error: any) {
-    // Błąd 401 przy wylogowaniu jest oczekiwany, jeśli sesja już wygasła
     if (error.response?.status !== 401) {
       console.error("Logout error:", error);
-      throw error; // Rzuć błąd dalej, jeśli to nie 401
+      throw error;
     }
-    // W przypadku 401, po prostu kontynuuj, bo backend i tak uznał sesję za nieważną
   }
 }
 
-export async function getMe() {
-  const response = await axiosInstance.get("Auth/me"); // lub Users/me, zgodnie z Twoim backendem
-  return response.data; // Zwraca dane zalogowanego użytkownika
+/** Get the currently logged-in user */
+export async function getMe(): Promise<UserDto> {
+  const response = await axiosInstance.get<UserDto>("/api/Auth/me");
+  return response.data;
 }
 
-export async function refreshToken(): Promise<string | null> {
+// Endpoint for changing password
+
+export async function changePassword(): Promise<void>{
+  const response = await axiosInstance.post("/api/Auth/changePassword");
+  return response.data;
+}
+
+// Endpoint for forgot password functionality
+
+export async function forgotPassword(): Promise<void>{
+  const response = await axiosInstance.post("/api/Auth/forgotPassword");
+  return response.data;
+}
+
+//Endpoint for resetting password after forgot password
+
+export async function resetPassword(): Promise<void>{
+  const response = await axiosInstance.post("/api/Auth/resetPassword");
+  return response.data;
+}
+
+// Endpoint for verifying email after registration
+
+export async function verifyEmail(): Promise<void>{
+  const response = await axiosInstance.post("/api/Auth/verifyEmail");
+  return response.data;
+}
+
+// Endpoint for checking the status of the authentication (e.g., if the user is logged in)
+
+export async function status(): Promise<void>{
+  const response = await axiosInstance.post("/api/Auth/status");
+  return response.data;
+}
+ 
+/** Request backend to refresh the JWT (sets a new HttpOnly cookie) */
+export async function refreshToken(): Promise<void> {
   try {
-    // Zakładamy, że backend ma endpoint /api/Auth/refresh
-    // i obsługuje odświeżanie na podstawie HttpOnly refresh token cookie
-    const response = await axiosInstance.post("Auth/refresh");
-    // Jeśli backend zwraca nowy access token w ciele odpowiedzi (mniej typowe dla HttpOnly)
-    // return response.data.accessToken;
-    // Dla HttpOnly, backend sam ustawi nowe ciasteczko, więc możemy zwrócić np. null lub potwierdzenie
-    return response.data?.accessToken || null; // Dostosuj do odpowiedzi Twojego API
+    await axiosInstance.post("/api/Auth/refresh");
+    // For HttpOnly, nothing to do, cookies are set server-side.
   } catch (error) {
     console.error("Failed to refresh token in api.ts", error);
     throw error;

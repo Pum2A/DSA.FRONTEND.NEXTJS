@@ -1,17 +1,29 @@
+import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { ThemeProvider } from "next-themes";
+import { Roboto_Mono as FontMono, Inter as FontSans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const inter = Inter({ subsets: ["latin"] });
+const fontSans = FontSans({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const fontMono = FontMono({
+  subsets: ["latin"],
+  variable: "--font-roboto-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "DSA Platform by Pum2A",
-  description: "Learn Data Structures and Algorithms",
+  title: "DSA Learning Platform",
+  description: "Learn data structures and algorithms interactively",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
-
-// The QueryClient instance is now managed within Providers.tsx
-// No need to create queryClient here anymore.
 
 export default function RootLayout({
   children,
@@ -19,9 +31,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl">
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
+    <html lang="pl" suppressHydrationWarning>
+      <body
+        className={cn(
+          "min-h-screen bg-background font-sans antialiased",
+          fontSans.variable,
+          fontMono.variable
+        )}
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Providers>{children}</Providers>
+        </ThemeProvider>
       </body>
     </html>
   );
