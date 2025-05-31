@@ -1,112 +1,191 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as authApi from '../features/auth/api';
-import { logout as apiLogout } from '../features/auth/api';
+import { usePathname, useRouter } from "next/navigation";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+// Upewnij się, że ten import jest poprawny i plik authTypes.ts zawiera ApiRegisterRequest
 
-export interface AuthContextValue {
-  user: any | null;
-  error: string | null;
-  setError: (e: string | null) => void;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, username: string, password: string, confirmPassword: string) => Promise<boolean>;
+import { toast } from "sonner"; // <--- ZMIANA: Import toast z sonner
+import {
+  getMe,
+  loginUser,
+  logoutUser,
+  registerUser,
+} from "../features/auth/api";
+import {
+  ApiRegisterRequest,
+  AuthResponse,
+  LoginRequest,
+} from "../types/api/authTypes";
+import { UserDto } from "../types/api/userTypes";
+
+interface AuthContextType {
+  user: UserDto | null;
+  login: (credentials: LoginRequest) => Promise<void>;
+  register: (data: ApiRegisterRequest) => Promise<void>; // Używamy ApiRegisterRequest
   logout: () => Promise<void>;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  error: string | null;
+  clearError: () => void;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('AuthContext not found');
-  return ctx;
-};
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<any | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<UserDto | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authApiError, setAuthApiError] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
+  // const { toast } = useToast(); // Usunięte - używamy toast z sonner bezpośrednio
+
+  const clearError = () => setAuthApiError(null);
+
+  const fetchUser = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const userData = await getMe();
+      setUser(userData);
+      setAuthApiError(null);
+    } catch (e: any) {
+      setUser(null);
+      if (e.response?.status !== 401) {
+        setAuthApiError("Nie udało się pobrać danych użytkownika.");
+        console.error("Fetch user error:", e);
+        // Możesz dodać toast.error tutaj, jeśli chcesz
+        // toast.error('Nie udało się pobrać danych użytkownika.');
+      }
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  }, []); // Usunięto toast z dependency array, bo jest importowany globalnie
 
   useEffect(() => {
-    authApi.getStatus()
-      .then(res => setUser(res.user ?? null))
-      .catch(() => setUser(null));
-  }, []);
+    fetchUser();
+  }, [fetchUser]);
 
-  const login = async (email: string, password: string) => {
-    setError(null);
+  useEffect(() => {
+    const handleForceLogout = async () => {
+      toast.error("Sesja wygasła. Zostałeś wylogowany."); // <--- ZMIANA: Użycie toast.error z sonner
+      setUser(null);
+      router.push("/login?expired=1&reason=session_timeout");
+    };
+    window.addEventListener("forceLogout", handleForceLogout);
+    return () => {
+      window.removeEventListener("forceLogout", handleForceLogout);
+    };
+  }, [router]); // Usunięto toast z dependency array
+
+  const login = async (credentials: LoginRequest) => {
+    setIsLoading(true);
+    setAuthApiError(null);
     try {
-      const res = await authApi.login(email, password);
-      if (res.success && res.user) {
-        setUser(res.user);
-        return true;
+      const response: AuthResponse = await loginUser(credentials);
+      if (response.success && response.user) {
+        setUser(response.user);
+        router.push(
+          new URLSearchParams(window.location.search).get("redirect") ||
+            "/dashboard"
+        );
+        toast.success(response.message || `Witaj ${response.user.username}!`); // <--- ZMIANA
+      } else {
+        throw new Error(response.message || "Logowanie nie powiodło się.");
       }
-      setError(res.message || 'Login failed');
-      return false;
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-      return false;
+    } catch (e: any) {
+      const errorMessage =
+        e.response?.data?.message ||
+        e.message ||
+        "Logowanie nie powiodło się. Sprawdź dane.";
+      console.error("Login failed:", e);
+      setAuthApiError(errorMessage);
+      toast.error(errorMessage); // <--- ZMIANA
+      throw e;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const register = async (
-    email: string,
-    username: string,
-    password: string,
-    confirmPassword: string
-  ) => {
-    setError(null);
+  const register = async (data: ApiRegisterRequest) => {
+    // data jest już typu ApiRegisterRequest
+    setIsLoading(true);
+    setAuthApiError(null);
     try {
-      const res = await authApi.register(email, username, password, confirmPassword);
-      if (res.success && res.user) {
-        setUser(res.user);
-        return true;
-      }
-      // obsługa błędów walidacji z .NET
-      if (res.errors) {
-        const firstError = Object.values(res.errors).flat()[0];
-        setError(firstError || res.message || 'Registration failed');
+      const response: AuthResponse = await registerUser(data); // registerUser z api.ts oczekuje ApiRegisterRequest
+      if (response.success) {
+        router.push("/login?registered=1");
+        toast.success(
+          response.message || "Rejestracja udana! Możesz się teraz zalogować."
+        ); // <--- ZMIANA
       } else {
-        setError(res.message || 'Registration failed');
+        throw new Error(response.message || "Rejestracja nie powiodła się.");
       }
-      return false;
-    } catch (err: any) {
-      // obsługa błędów walidacji z .NET
-      if (err.response?.data?.errors) {
-        const firstError = Object.values(err.response.data.errors).flat()[0];
-        setError(String(firstError) || 'Registration failed');
-      } else {
-        setError(err.response?.data?.message || 'Registration failed');
-      }
-      return false;
+    } catch (e: any) {
+      const errorMessage =
+        e.response?.data?.message ||
+        e.message ||
+        "Rejestracja nie powiodła się.";
+      console.error("Registration failed:", e);
+      setAuthApiError(errorMessage);
+      toast.error(errorMessage); // <--- ZMIANA
+      throw e;
+    } finally {
+      setIsLoading(false);
     }
   };
 
- const logout = async () => {
-  try {
-    await apiLogout();
-  } catch (err: any) {
-    // Możesz zignorować błąd 401 przy logout
-    if (err?.response?.status !== 401) {
-      console.error('Unexpected logout error', err);
+  const logout = async () => {
+    setIsLoading(true);
+    setAuthApiError(null);
+    try {
+      await logoutUser();
+      toast.success("Wylogowano pomyślnie."); // <--- ZMIANA (przeniesione z finally dla pewności)
+    } catch (e: any) {
+      if (e.response?.status !== 401) {
+        console.error("Logout failed:", e);
+        setAuthApiError("Wylogowanie nie powiodło się.");
+        toast.error("Błąd wylogowania. Spróbuj ponownie."); // <--- ZMIANA
+      } else {
+        // Jeśli błąd 401, to sesja i tak była nieważna, można uznać za "sukces" wylogowania po stronie klienta
+        toast.info("Zostałeś wylogowany.");
+      }
+    } finally {
+      setUser(null);
+      router.push("/login");
+      setIsLoading(false);
+      // if (!authApiError) toast.success("Wylogowano pomyślnie."); // Przeniesione wyżej
     }
-  }
-  setUser(null);
-  router.push('/login');
-};
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        error,
-        setError,
         login,
         register,
-        logout
+        logout,
+        isLoading,
+        isAuthenticated: !!user,
+        error: authApiError,
+        clearError,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };

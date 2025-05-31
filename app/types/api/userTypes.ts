@@ -1,3 +1,31 @@
+export enum ActivityType {
+  LessonCompleted = "LessonCompleted",
+  QuizCompleted = "QuizCompleted",
+  StreakMilestone = "StreakMilestone",
+  LevelUp = "LevelUp",
+  ModuleCompleted = "ModuleCompleted",
+}
+
+export interface UserDto {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  xpPoints: number;
+  currentStreak: number;
+  maxStreak: number;
+  lastActivityDate?: string; // Powinien być stringiem ISO Date (np. "2023-10-26T07:49:13.748Z")
+  emailVerified: boolean;
+}
+
+export interface UserStatsDto {
+  completedLessons: number;
+  completedModules: number;
+  completedQuizzes: number;
+  averageQuizScore: number;
+  ranking: number;
+}
+
 export interface UserProfileDto {
   id: string;
   email: string;
@@ -7,17 +35,9 @@ export interface UserProfileDto {
   xpPoints: number;
   currentStreak: number;
   maxStreak: number;
-  lastActivityDate?: string;
-  createdAt: string;
+  lastActivityDate?: string; // string ISO Date
+  createdAt: string; // string ISO Date
   stats: UserStatsDto;
-}
-
-export interface UserStatsDto {
-  completedLessons: number;
-  completedModules: number;
-  completedQuizzes: number;
-  averageQuizScore: number;
-  ranking: number;
 }
 
 export interface UpdateProfileRequest {
@@ -38,13 +58,13 @@ export interface PublicUserProfileDto {
   xpPoints: number;
   currentStreak: number;
   maxStreak: number;
-  lastActivityDate?: string;
-  createdAt: string;
+  lastActivityDate?: string; // string ISO Date
+  createdAt: string; // string ISO Date
   stats: UserStatsDto;
 }
 
 export interface UserRankingRequest {
-  orderBy: string;
+  orderBy: string; // np. "xpPoints", "currentStreak"
   descending: boolean;
   page: number;
   pageSize: number;
@@ -70,18 +90,10 @@ export interface UserRankingResponse {
 }
 
 export interface UserActivityRequest {
-  startDate?: string;
-  endDate?: string;
+  startDate?: string; // string ISO Date
+  endDate?: string; // string ISO Date
   page: number;
   pageSize: number;
-}
-
-export enum ActivityType {
-  LessonCompleted = 'LessonCompleted',
-  QuizCompleted = 'QuizCompleted',
-  StreakMilestone = 'StreakMilestone',
-  LevelUp = 'LevelUp',
-  ModuleCompleted = 'ModuleCompleted'
 }
 
 export interface UserActivityItemDto {
@@ -90,9 +102,9 @@ export interface UserActivityItemDto {
   title: string;
   description: string;
   xpEarned: number;
-  createdAt: string;
+  createdAt: string; // string ISO Date
   relatedEntityId?: string;
-  relatedEntityType?: string;
+  relatedEntityType?: string; // np. "Lesson", "Quiz", "Module"
 }
 
 export interface UserActivityResponse {
@@ -103,34 +115,12 @@ export interface UserActivityResponse {
   totalPages: number;
 }
 
-export interface ModuleProgressDto {
-  id: string;
-  title: string;
-  totalLessons: number;
-  completedLessons: number;
-  totalQuizzes: number;
-  completedQuizzes: number;
-  progressPercentage: number;
-  isCompleted: boolean;
-}
-
-export interface UserProgressResponse {
-  totalModules: number;
-  completedModules: number;
-  totalLessons: number;
-  completedLessons: number;
-  totalQuizzes: number;
-  completedQuizzes: number;
-  overallProgressPercentage: number;
-  moduleProgresses: ModuleProgressDto[];
-}
-
 export interface XpHistoryItemDto {
   id: string;
   amount: number;
-  source: string;
+  source: string; // np. "LESSON_COMPLETION", "QUIZ_COMPLETION"
   description: string;
-  createdAt: string;
+  createdAt: string; // string ISO Date
 }
 
 export interface UserXpResponse {
@@ -138,20 +128,20 @@ export interface UserXpResponse {
   currentLevel: number;
   xpForCurrentLevel: number;
   xpForNextLevel: number;
-  xpProgress: number;
+  xpProgress: number; // Procent postępu do następnego poziomu (0-100)
   recentXpHistory: XpHistoryItemDto[];
 }
 
 export interface StreakDayDto {
-  date: string;
+  date: string; // string ISO Date (tylko data, np. "2023-10-26")
   wasActive: boolean;
 }
 
 export interface UserStreakResponse {
   currentStreak: number;
   maxStreak: number;
-  lastActivityDate?: string;
+  lastActivityDate?: string; // string ISO Date
   isActiveToday: boolean;
-  daysUntilStreakLost: number;
-  recentDays: StreakDayDto[];
+  daysUntilStreakLost: number; // Ile dni pozostało do utraty passy (jeśli nieaktywny)
+  recentDays: StreakDayDto[]; // Aktywność z ostatnich kilku dni
 }

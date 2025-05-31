@@ -1,34 +1,46 @@
-import { UserProfileDto } from '@/app/types/user';
-import axios from 'axios';
+import axiosInstance from "@/app/utils/axiosRefreshTokenInstance";
+import { LoginFormData } from "./schema/loginSchema";
+import { RegisterFormData } from "./schema/registerSchema";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5178/api/';
-
-export async function getStatus(): Promise<{ isAuthenticated: boolean; user?: UserProfileDto }> {
-    const res = await axios.get(`${API_BASE_URL}Auth/status`, { withCredentials: true });
-    return res.data;
+export async function loginUser(credentials: LoginFormData) {
+  const response = await axiosInstance.post("Auth/login", credentials);
+  return response.data; // Zwraca dane użytkownika lub potwierdzenie
 }
 
-export async function login(email: string, password: string) {
-    const res = await axios.post(`${API_BASE_URL}Auth/login`, { email, password }, { withCredentials: true });
-    return res.data;
+export async function registerUser(data: RegisterFormData) {
+  const response = await axiosInstance.post("Auth/register", data);
+  return response.data;
 }
 
-export async function register(email: string, username: string, password: string, confirmPassword: string) {
-  const res = await axios.post(`${API_BASE_URL}Auth/register`, {
-    Email: email,
-    Username: username,
-    Password: password,
-    ConfirmPassword: confirmPassword,
-  }, { withCredentials: true });
-  return res.data;
+export async function logoutUser() {
+  try {
+    await axiosInstance.post("Auth/logout");
+  } catch (error: any) {
+    // Błąd 401 przy wylogowaniu jest oczekiwany, jeśli sesja już wygasła
+    if (error.response?.status !== 401) {
+      console.error("Logout error:", error);
+      throw error; // Rzuć błąd dalej, jeśli to nie 401
+    }
+    // W przypadku 401, po prostu kontynuuj, bo backend i tak uznał sesję za nieważną
+  }
 }
 
-
-export async function getProfile() {
-  return axios.get(`${API_BASE_URL}Auth/me`, { withCredentials: true }).then(r => r.data);
+export async function getMe() {
+  const response = await axiosInstance.get("Auth/me"); // lub Users/me, zgodnie z Twoim backendem
+  return response.data; // Zwraca dane zalogowanego użytkownika
 }
 
-export async function logout() {
-  return axios.post(`${API_BASE_URL}Auth/logout`, {}, { withCredentials: true });
+export async function refreshToken(): Promise<string | null> {
+  try {
+    // Zakładamy, że backend ma endpoint /api/Auth/refresh
+    // i obsługuje odświeżanie na podstawie HttpOnly refresh token cookie
+    const response = await axiosInstance.post("Auth/refresh");
+    // Jeśli backend zwraca nowy access token w ciele odpowiedzi (mniej typowe dla HttpOnly)
+    // return response.data.accessToken;
+    // Dla HttpOnly, backend sam ustawi nowe ciasteczko, więc możemy zwrócić np. null lub potwierdzenie
+    return response.data?.accessToken || null; // Dostosuj do odpowiedzi Twojego API
+  } catch (error) {
+    console.error("Failed to refresh token in api.ts", error);
+    throw error;
+  }
 }
-

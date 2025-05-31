@@ -1,185 +1,145 @@
-'use client';
+"use client";
 
-import { useAuth } from '@/app/context/AuthContext';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useAuth } from "@/app/context/AuthContext";
 
-// Extract search params logic to a separate component
-function LoginForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, error: authError } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner"; // <--- ZMIANA: Import toast z sonner
+import {
+  LoginFormData,
+  loginSchema,
+} from "@/app/features/auth/schema/loginSchema";
+
+export default function LoginPage() {
+  const { login, isLoading, error: authError, clearError } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  // const { toast } = useToast(); // Usunięte
 
-  // Get URL params in a client component
-  const searchParams = new URLSearchParams(
-    typeof window !== 'undefined' ? window.location.search : ''
-  );
-  const redirect = searchParams.get('redirect');
-  const registered = searchParams.get('registered');
-  const expired = searchParams.get('expired');
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
+  useEffect(() => {
+    if (searchParams.get("registered") === "1") {
+      toast.success("Rejestracja zakończona!", {
+        description: "Możesz się teraz zalogować.",
+      }); // <--- ZMIANA
+      router.replace("/login", { scroll: false });
     }
+    if (searchParams.get("expired") === "1" && !authError) {
+      toast.error("Sesja wygasła", { description: "Zaloguj się ponownie." }); // <--- ZMIANA
+      router.replace("/login", { scroll: false });
+    }
+  }, [searchParams, router, authError]); // Usunięto toast z dependency array
 
+  useEffect(() => {
+    return () => {
+      if (authError) clearError();
+    };
+  }, [authError, clearError, pathname]);
+
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      const success = await login(email, password);
-      if (success) {
-        const redirectPath = redirect || '/dashboard';
-        router.push(redirectPath);
-      } else {
-        setError(authError || 'Login failed. Please check your credentials.');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
+      await login(data);
+    } catch (e) {
+      // Błąd jest już obsługiwany i wyświetlany jako toast przez AuthContext
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {registered && (
-            <div className="mb-4 p-4 bg-green-100 border border-green-300 text-green-700 rounded">
-              Registration successful! Please log in with your credentials.
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-950 p-4">
+      <Card className="w-full max-w-md dark:bg-gray-900">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">
+            Zaloguj się
+          </CardTitle>
+          <CardDescription className="text-center">
+            Witaj z powrotem! Podaj swoje dane.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Komunikat błędu z AuthContext jest już wyświetlany jako toast */}
+          {/* Jeśli chcesz dodatkowy komunikat błędu bezpośrednio w formularzu: */}
+          {authError && !isLoading && (
+            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-200 rounded">
+              {authError}
             </div>
           )}
-
-          {expired && (
-            <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded">
-              Your session has expired. Please log in again.
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 rounded">
-              {error}
-            </div>
-          )}
-
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...register("email")}
+                placeholder="ty@example.com"
+              />
+              {errors.email && (
+                <p className="text-sm text-red-600 mt-1">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
-
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
+              <Label htmlFor="password">Hasło</Label>
+              <Input
+                id="password"
+                type="password"
+                {...register("password")}
+                placeholder="••••••••"
+              />
+              {errors.password && (
+                <p className="text-sm text-red-600 mt-1">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                  Forgot your password?
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </button>
-            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Logowanie..." : "Zaloguj się"}
+            </Button>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              <div>
-                <Link href="/register" className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                  Create new account
-                </Link>
-              </div>
-            </div>
+        </CardContent>
+        <CardFooter className="flex flex-col items-center space-y-2">
+          <div className="text-sm">
+            <Link
+              href="#"
+              className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Zapomniałeś hasła?
+            </Link>
           </div>
-        </div>
-      </div>
+          <div className="text-sm">
+            Nie masz konta?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Zarejestruj się
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
-  );
-}
-
-// Main Login page component with Suspense
-export default function Login() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
   );
 }

@@ -1,23 +1,27 @@
-'use client';
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "./providers";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
-import Navbar from './components/Navbar';
-import { AuthProvider } from './context/AuthContext';
-import './globals.css';
+const inter = Inter({ subsets: ["latin"] });
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-    const [queryClient] = useState(() => new QueryClient());
+export const metadata: Metadata = {
+  title: "DSA Platform by Pum2A",
+  description: "Learn Data Structures and Algorithms",
+};
 
+// The QueryClient instance is now managed within Providers.tsx
+// No need to create queryClient here anymore.
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="pl">
-      <body className="bg-gray-100 min-h-screen">
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <Navbar />
-            <main className="max-w-7xl mx-auto p-4">{children}</main>
-          </AuthProvider>
-        </QueryClientProvider>
+      <body className={inter.className}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
