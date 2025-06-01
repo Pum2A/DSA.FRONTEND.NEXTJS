@@ -1,122 +1,235 @@
 "use client";
 
 import Navbar from "@/app/components/Navbar";
-import { QuizListItemDto } from "@/app/types/api/quizTypes";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Clock } from "lucide-react";
+import { Activity, Clock, FileCheck, Loader2, Trophy } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-export default function QuizListPage() {
-  // Pobierz wszystkie quizy
-  const { data, isLoading } = useQuery<{ quizzes: QuizListItemDto[]; totalQuizzes: number }>({
-    queryKey: ["allQuizzes"],
-    queryFn: async () => {
-      const response = await fetch("/api/Quiz/all", {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch quizzes");
-      return response.json();
-    },
-  });
+type ModuleDto = {
+  id: string;
+  title: string;
+  description: string;
+};
 
-  const quizzes = Array.isArray(data?.quizzes) ? data.quizzes : [];
+type QuizDto = {
+  id: string;
+  title: string;
+  description: string;
+  xpReward: number;
+  timeLimit: number; // w minutach
+  isActive: boolean;
+  questionCount: number;
+  isCompleted: boolean;
+  bestScore?: number;
+  bestPercentage?: number;
+  attemptCount: number;
+};
+
+type ModulesResponse = {
+  modules: ModuleDto[];
+  totalModules: number;
+};
+
+type ModuleQuizzesResponse = {
+  moduleId: string;
+  moduleTitle: string;
+  quizzes: QuizDto[];
+  totalQuizzes: number;
+};
+
+export default function QuizzesPage() {
+  const { toast } = useToast();
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [allModuleIds, setAllModuleIds] = useState<string[]>([]);
+
+  // Pobierz wszystkie moduły
+  const { data: modules, isLoading: modulesLoading } =
+    useQuery<ModulesResponse>({
+      queryKey: ["allModules"],
+      queryFn: async () => {
+        const res = await fetch("/api/Lessons/modules", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Failed to fetch modules");
+        return res.json();
+      },
+    });
+
+  // Ustaw pierwszy moduł jako domyślny
+  useEffect(() => {
+    if (
+      modules &&
+      Array.isArray(modules.modules) &&
+      modules.modules.length > 0
+    ) {
+      const moduleIds = modules.modules.map((m: ModuleDto) => m.id);
+      setAllModuleIds(moduleIds);
+      if (!selectedModuleId) {
+        setSelectedModuleId(moduleIds[0]);
+      }
+    }
+  }, [modules, selectedModuleId]);
+
+  // Pobierz quizy dla wybranego modułu
+  const { data: quizzes, isLoading: quizzesLoading } =
+    useQuery<ModuleQuizzesResponse>({
+      queryKey: ["moduleQuizzes", selectedModuleId],
+      queryFn: async () => {
+        if (!selectedModuleId) return null;
+        const res = await fetch(`/api/Quiz/modules/${selectedModuleId}`, {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Failed to fetch quizzes");
+        return res.json();
+      },
+      enabled: !!selectedModuleId,
+    });
+
+  const isLoading = modulesLoading || (quizzesLoading && !!selectedModuleId);
+
+  // Zmień wybrany moduł
+  const handleModuleChange = (moduleId: string) => {
+    setSelectedModuleId(moduleId);
+  };
+
+  if (isLoading) {
+    return (
+      <div>
+        <Navbar />
+        <div className="container mx-auto py-8 px-4">
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-12 w-12 animate-spin text-brand-500" />
+            <span className="ml-2 text-xl">Ładowanie quizów...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const modulesList = modules?.modules || [];
+  const moduleQuizzes = quizzes?.quizzes || [];
+  const currentModule = modulesList.find(
+    (module: ModuleDto) => module.id === selectedModuleId
+  );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <Navbar />
       <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold">Quizy</h1>
-          <p className="text-muted-foreground mt-2">
-            Przeglądaj wszystkie dostępne quizy na platformie.
-          </p>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Quizy</h1>
+          <Link href="/results">
+            <Button variant="outline" className="flex items-center">
+              <Trophy className="mr-2 h-4 w-4" />
+              Moje wyniki
+            </Button>
+          </Link>
         </div>
-        
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-48 rounded-lg bg-gray-200 dark:bg-gray-700 mb-4"></div>
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-              </div>
+
+        {/* Module selector */}
+        <div className="mb-8">
+          <h2 className="text-lg font-medium mb-3">Wybierz moduł:</h2>
+          <div className="flex flex-wrap gap-2">
+            {modulesList.map((module: ModuleDto) => (
+              <Button
+                key={module.id}
+                variant={selectedModuleId === module.id ? "default" : "outline"}
+                onClick={() => handleModuleChange(module.id)}
+              >
+                {module.title}
+              </Button>
             ))}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {quizzes.length > 0 ? quizzes.map((quiz) => {
-              const isCompleted = !!quiz.isCompleted;
-              const percentage = quiz.bestPercentage || 0;
+        </div>
 
-              return (
-                <Card 
-                  key={quiz.id}
-                  className={`overflow-hidden transition-all hover:-translate-y-1 hover:shadow-md`}
-                >
-                  <CardHeader>
-                    <CardTitle>{quiz.title}</CardTitle>
-                    <CardDescription>
-                      {quiz.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center text-sm text-muted-foreground mb-3 gap-3">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>{Math.round(quiz.timeLimit / 60) || 1} min</span>
-                      <span className="mx-2">•</span>
-                      <span>{quiz.questionCount} pytań</span>
-                      {quiz.xpReward > 0 && (
-                        <>
-                          <span className="mx-2">•</span>
-                          <span>{quiz.xpReward} XP</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="mb-3">
-                      {isCompleted && (
-                        <>
-                          <Progress value={percentage} className="h-2" />
-                          <div className="text-xs text-right text-muted-foreground mt-1">
-                            Twój najlepszy wynik: {percentage}%
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    {isCompleted ? (
-                      <Button className="w-full" variant="outline" asChild>
-                        <Link href={`/quiz/${quiz.id}`}>Powtórz quiz</Link>
-                      </Button>
-                    ) : (
-                      <Button className="w-full" asChild>
-                        <Link href={`/quiz/${quiz.id}`}>
-                          Rozpocznij
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
-                    )}
-                  </CardFooter>
-                </Card>
-              );
-            }) : (
-              <div className="col-span-full text-center py-12">
-                <h3 className="text-xl font-medium">Brak dostępnych quizów</h3>
-                <p className="text-muted-foreground mt-2">Nowe quizy będą dostępne wkrótce.</p>
-              </div>
-            )}
+        {/* Current module info */}
+        {currentModule && (
+          <div className="mb-6 p-4 bg-muted rounded-lg">
+            <h2 className="text-xl font-semibold">{currentModule.title}</h2>
+            <p className="text-muted-foreground">{currentModule.description}</p>
           </div>
         )}
+
+        {/* Quizzes list */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {moduleQuizzes.length > 0 ? (
+            moduleQuizzes.map((quiz: QuizDto) => (
+              <Card key={quiz.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{quiz.title}</span>
+                    {quiz.isCompleted && (
+                      <span className="text-green-600 bg-green-100 dark:bg-green-900/20 p-1 rounded text-xs">
+                        Ukończony
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4">
+                    {quiz.description}
+                  </p>
+                  <div className="flex flex-col gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span>Limit czasu: {quiz.timeLimit / 60} min</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="h-4 w-4 text-muted-foreground" />
+                      <span>Pytań: {quiz.questionCount}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-muted-foreground" />
+                      <span>Nagroda: {quiz.xpReward} XP</span>
+                    </div>
+                  </div>
+
+                  {quiz.isCompleted && quiz.bestPercentage !== undefined && (
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Najlepszy wynik</span>
+                        <span className="font-semibold">
+                          {quiz.bestPercentage}%
+                        </span>
+                      </div>
+                      <Progress value={quiz.bestPercentage} className="h-1.5" />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Liczba podejść: {quiz.attemptCount}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" asChild>
+                    <Link href={`/quizzes/${quiz.id}`}>
+                      {quiz.isCompleted
+                        ? "Spróbuj ponownie"
+                        : "Rozpocznij quiz"}
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <h3 className="text-xl font-medium">Brak dostępnych quizów</h3>
+              <p className="text-muted-foreground mt-2">
+                Ten moduł nie zawiera jeszcze quizów.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

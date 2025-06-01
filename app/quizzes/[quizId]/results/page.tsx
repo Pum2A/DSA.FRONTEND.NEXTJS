@@ -1,66 +1,126 @@
 "use client";
 
 import Navbar from "@/app/components/Navbar";
-import { QuizAnswerResultDto, QuizResultResponse } from "@/app/types/api/quizTypes";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle, ChevronLeft, Star, XCircle } from "lucide-react";
+import { Calendar, ChevronLeft, Info, Loader2, Trophy } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 
-export default function QuizResultsPage() {
-  const { quizId } = useParams() as { quizId: string };
-  const router = useRouter();
-  
-  // Fetch quiz details first to get the moduleId
-  const { data: quiz } = useQuery({
-    queryKey: ["quiz", quizId],
-    queryFn: async () => {
-      try {
-        const response = await fetch(`/api/Quiz/${quizId}`, {
+type ModuleDto = {
+  id: string;
+  title: string;
+  quizzes?: QuizBasicDto[];
+};
+
+type QuizBasicDto = {
+  id: string;
+  title: string;
+  moduleTitle?: string;
+};
+
+type QuizAttempt = {
+  id: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  scorePercentage: number;
+  xpEarned: number;
+  grade: string;
+  isPassing: boolean;
+  startedAt: string;
+  completedAt: string;
+  duration: number; // in milliseconds
+};
+
+type QuizResult = {
+  quizId: string;
+  quizTitle: string;
+  attemptCount: number;
+  bestScore?: number;
+  bestPercentage?: number;
+  firstAttemptDate?: string;
+  lastAttemptDate?: string;
+  attempts: QuizAttempt[];
+};
+
+type ModulesResponse = {
+  modules: ModuleDto[];
+  totalModules: number;
+};
+
+export default function ResultsPage() {
+  const { toast } = useToast();
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
+
+  // Fetch all modules to get quizzes
+  const { data: modules, isLoading: modulesLoading } =
+    useQuery<ModulesResponse>({
+      queryKey: ["allModules"],
+      queryFn: async () => {
+        const res = await fetch("/api/Lessons/modules", {
           credentials: "include",
         });
-        
-        if (!response.ok) throw new Error("Failed to fetch quiz details");
-        return response.json();
-      } catch (error) {
-        console.error("Error fetching quiz details:", error);
-        throw error;
-      }
-    },
-  });
+        if (!res.ok) throw new Error("Failed to fetch modules");
+        return res.json();
+      },
+    });
 
-  // Fetch quiz results
-  const { data: results, isLoading } = useQuery<QuizResultResponse>({
-    queryKey: ["quizResults", quizId],
-    queryFn: async () => {
-      try {
-        const response = await fetch(`/api/Quiz/${quizId}/results`, {
+  // Fetch results for selected quiz
+  const { data: quizResults, isLoading: resultsLoading } = useQuery<QuizResult>(
+    {
+      queryKey: ["quizResults", selectedQuizId],
+      queryFn: async () => {
+        if (!selectedQuizId) return null;
+        const res = await fetch(`/api/Quiz/${selectedQuizId}/results`, {
           credentials: "include",
         });
-        
-        if (!response.ok) throw new Error("Failed to fetch quiz results");
-        return response.json();
-      } catch (error) {
-        console.error("Error fetching quiz results:", error);
-        throw error;
-      }
-    },
-  });
+        if (!res.ok) throw new Error("Failed to fetch quiz results");
+        return res.json();
+      },
+      enabled: !!selectedQuizId,
+    }
+  );
 
-  // Get message based on score
-  const getScoreMessage = (score: number) => {
-    if (score >= 90) return "Znakomicie! Doskonale opanowałeś ten materiał!";
-    if (score >= 80) return "Bardzo dobrze! Masz solidną wiedzę na ten temat.";
-    if (score >= 70) return "Dobrze! Opanowałeś większość materiału.";
-    if (score >= 60) return "Nieźle! Warto jednak powtórzyć niektóre zagadnienia.";
-    return "Musisz jeszcze popracować nad tym tematem.";
+  // Get quizzes from all modules
+  const allQuizzes =
+    modules?.modules?.flatMap((module: ModuleDto) => {
+      // Quizzes might not be loaded yet in modules response
+      if (!module.quizzes) return [];
+      return module.quizzes.map((quiz: QuizBasicDto) => ({
+        ...quiz,
+        moduleTitle: module.title,
+      }));
+    }) || [];
+
+  // Set first quiz as default if we have quizzes and none selected
+  if (allQuizzes.length > 0 && !selectedQuizId && !modulesLoading) {
+    setSelectedQuizId(allQuizzes[0].id);
+  }
+
+  const isLoading = modulesLoading || (resultsLoading && !!selectedQuizId);
+
+  // Format the duration in minutes and seconds
+  const formatDuration = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}m ${seconds}s`;
   };
 
   if (isLoading) {
@@ -68,190 +128,236 @@ export default function QuizResultsPage() {
       <div>
         <Navbar />
         <div className="container mx-auto py-8 px-4">
-          <div className="animate-pulse space-y-6 max-w-3xl mx-auto">
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-            <div className="h-60 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-12 w-12 animate-spin text-brand-500" />
+            <span className="ml-2 text-xl">Ładowanie wyników...</span>
           </div>
         </div>
       </div>
     );
   }
 
-  // Calculate incorrect answers
-  const incorrectAnswers = results ? results.totalQuestions - results.correctAnswers : 0;
-
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <Navbar />
-      <div className="container mx-auto py-6 px-4">
-        <div className="max-w-3xl mx-auto">
-          {/* Breadcrumb */}
-          <div className="mb-6">
-            <Button variant="ghost" asChild className="mb-4 -ml-2 text-muted-foreground">
-              <Link href={quiz ? `/modules/${quiz.moduleId}` : "/dashboard"}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                {quiz ? "Powrót do modułu" : "Powrót do dashboardu"}
-              </Link>
-            </Button>
+      <div className="container mx-auto py-8 px-4">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold flex items-center">
+            <Trophy className="mr-2 h-6 w-6 text-amber-500" />
+            Moje wyniki quizów
+          </h1>
+          <Button variant="outline" asChild>
+            <Link href="/quizzes">
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Powrót do quizów
+            </Link>
+          </Button>
+        </div>
 
-            <h1 className="text-3xl font-bold">Wyniki quizu</h1>
-            <p className="text-muted-foreground mt-2">{quiz?.title || "Quiz"}</p>
-          </div>
+        {/* Quiz selector */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl">Wybierz quiz</CardTitle>
+            <CardDescription>
+              Zobacz swoje wyniki dla poszczególnych quizów
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {allQuizzes.length > 0 ? (
+              <Select
+                value={selectedQuizId || ""}
+                onValueChange={(value) => setSelectedQuizId(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Wybierz quiz" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allQuizzes.map(
+                    (quiz: QuizBasicDto & { moduleTitle?: string }) => (
+                      <SelectItem key={quiz.id} value={quiz.id}>
+                        {quiz.moduleTitle} - {quiz.title}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground">
+                  Nie znaleziono żadnych quizów.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Score overview */}
-          <Card className="mb-8 overflow-hidden">
-            <div className={`p-6 text-white ${
-              results && results.score >= 70 
-                ? "bg-gradient-to-r from-green-600 to-green-700" 
-                : results && results.score >= 50 
-                  ? "bg-gradient-to-r from-amber-500 to-amber-600"
-                  : "bg-gradient-to-r from-red-600 to-red-700"
-            }`}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-white text-2xl font-bold">Twój wynik</h2>
-                  <p className="text-white/80 mt-1">
-                    {results ? getScoreMessage(results.score) : ""}
+        {/* Quiz results */}
+        {quizResults ? (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold mb-2">
+                {quizResults.quizTitle}
+              </h2>
+              <div className="flex flex-wrap gap-4">
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Liczba podejść
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {quizResults.attemptCount}
                   </p>
                 </div>
-                <div className="text-4xl font-bold">{results?.score || 0}%</div>
+
+                {quizResults.bestPercentage !== undefined && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Najlepszy wynik
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {quizResults.bestPercentage}%
+                    </p>
+                  </div>
+                )}
+
+                {quizResults.firstAttemptDate && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Pierwsze podejście
+                    </p>
+                    <p className="text-base font-medium">
+                      {new Date(
+                        quizResults.firstAttemptDate
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+
+                {quizResults.lastAttemptDate && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Ostatnie podejście
+                    </p>
+                    <p className="text-base font-medium">
+                      {new Date(
+                        quizResults.lastAttemptDate
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-green-100 dark:bg-green-900/20 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                    {results?.correctAnswers || 0}
-                  </div>
-                  <div className="text-sm text-green-800 dark:text-green-300">Poprawne</div>
-                </div>
-                <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-red-700 dark:text-red-400">
-                    {incorrectAnswers}
-                  </div>
-                  <div className="text-sm text-red-800 dark:text-red-300">Błędne</div>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-3 text-amber-600 dark:text-amber-400">
-                <Star className="h-5 w-5" />
-                <span className="text-lg font-medium">+{results?.xpEarned || 0} XP zdobyto</span>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Question review */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Przegląd pytań</h2>
-            
-            <div className="space-y-6">
-              {results?.answerResults?.map((question: QuizAnswerResultDto, index: number) => (
-                <Card key={question.questionId} className={`border-l-4 ${
-                  question.isCorrect 
-                    ? "border-l-green-600 dark:border-l-green-500" 
-                    : "border-l-red-600 dark:border-l-red-500"
-                }`}>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-base font-medium">
-                        <span className="text-muted-foreground mr-2">
-                          {index + 1}.
-                        </span>
-                        {question.questionText}
-                      </CardTitle>
-                      {question.isCorrect ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-500" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-600 dark:text-red-500" />
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {/* We need to modify how we show options since we don't have direct access to all options */}
-                    <div className="space-y-2">
-                      {/* User selected answers */}
-                      {question.selectedOptionIds.map((optionId: string) => {
-                        const isCorrect = question.correctOptionIds.includes(optionId);
-                        
-                        return (
-                          <div key={optionId} className={`flex items-center space-x-2 p-2 rounded ${
-                            isCorrect
-                              ? "bg-green-100 dark:bg-green-900/20"
-                              : "bg-red-100 dark:bg-red-900/20"
-                          }`}>
-                            {isCorrect ? (
-                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
-                            )}
-                            <span>
-                              {/* We don't have direct access to option text from the results */}
-                              {/* Display option ID instead or implement a lookup */}
-                              Wybrana odpowiedź {isCorrect ? "(poprawna)" : "(niepoprawna)"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      
-                      {/* Show correct answers that were not selected */}
-                      {question.correctOptionIds
-                        .filter(id => !question.selectedOptionIds.includes(id))
-                        .map((optionId: string) => (
-                          <div key={optionId} className="flex items-center space-x-2 p-2 rounded bg-blue-100 dark:bg-blue-900/20">
-                            <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-500" />
-                            <span>
-                              <span className="font-medium">Prawidłowa odpowiedź</span>
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                    
-                    {question.explanation && (
-                      <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-medium">Wyjaśnienie: </span>
-                          {question.explanation}
-                        </p>
+            {/* List of attempts */}
+            <h3 className="text-xl font-medium mb-4">Historia podejść</h3>
+
+            {quizResults.attempts.length > 0 ? (
+              <div className="space-y-4">
+                {quizResults.attempts.map((attempt, index) => (
+                  <Card
+                    key={attempt.id}
+                    className={
+                      attempt.isPassing ? "border-green-300" : "border-red-300"
+                    }
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="text-lg">
+                          Podejście #{quizResults.attempts.length - index}
+                        </CardTitle>
+                        <div
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            attempt.isPassing
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          Ocena: {attempt.grade}
+                        </div>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+                      <CardDescription className="flex items-center">
+                        <Calendar className="h-3.5 w-3.5 mr-1" />
+                        {new Date(attempt.completedAt).toLocaleString()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Wynik: {attempt.scorePercentage}%</span>
+                            <span>
+                              {attempt.correctAnswers}/{attempt.totalQuestions}{" "}
+                              poprawnych
+                            </span>
+                          </div>
+                          <Progress
+                            value={attempt.scorePercentage}
+                            className={`h-2 ${
+                              attempt.isPassing ? "bg-green-100" : "bg-red-100"
+                            }`}
+                          />
+                        </div>
 
-          {/* Navigation buttons */}
-          <div className="flex justify-between gap-4">
-            {/* Pass to next module if available and score is good */}
-            {results && results.score >= 70 && quiz?.moduleId && (
-              <Button asChild>
-                <Link href={`/modules/${quiz.moduleId}`}>
-                  Wróć do modułu
-                </Link>
-              </Button>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="p-2 bg-muted rounded">
+                            <span className="text-muted-foreground">Czas:</span>{" "}
+                            <span className="font-medium">
+                              {formatDuration(attempt.duration)}
+                            </span>
+                          </div>
+                          <div className="p-2 bg-muted rounded">
+                            <span className="text-muted-foreground">XP:</span>{" "}
+                            <span className="font-medium">
+                              {attempt.xpEarned} punktów
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 border rounded-lg">
+                <Info className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-2" />
+                <p className="text-xl font-medium">Brak historii</p>
+                <p className="text-muted-foreground">
+                  Nie masz jeszcze podejść do tego quizu
+                </p>
+                <Button className="mt-4" asChild>
+                  <Link href={`/quizzes/${quizResults.quizId}`}>
+                    Rozpocznij quiz
+                  </Link>
+                </Button>
+              </div>
             )}
-            
-            {/* Retry quiz button */}
-            <Button 
-              variant={results && results.score >= 70 ? "outline" : "default"} 
-              asChild
-            >
-              <Link href={`/quiz/${quizId}`}>
-                {results && results.score >= 70 ? "Spróbuj ponownie" : "Powtórz quiz"}
-              </Link>
-            </Button>
-            
-            {/* Back to module button */}
-            <Button 
-              variant="outline" 
-              asChild
-            >
-              <Link href={quiz ? `/modules/${quiz.moduleId}` : "/dashboard"}>
-                {quiz ? "Powrót do modułu" : "Powrót do dashboardu"}
-              </Link>
+          </div>
+        ) : (
+          selectedQuizId && (
+            <div className="text-center py-12 border rounded-lg">
+              <Info className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-2" />
+              <p className="text-xl font-medium">Brak wyników</p>
+              <p className="text-muted-foreground">
+                Nie masz jeszcze podejść do tego quizu
+              </p>
+              <Button className="mt-4" asChild>
+                <Link href={`/quizzes/${selectedQuizId}`}>Rozpocznij quiz</Link>
+              </Button>
+            </div>
+          )
+        )}
+
+        {!selectedQuizId && allQuizzes.length === 0 && (
+          <div className="text-center py-12 border rounded-lg">
+            <Info className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-2" />
+            <p className="text-xl font-medium">Brak dostępnych quizów</p>
+            <p className="text-muted-foreground">
+              Nie znaleziono żadnych quizów do wyświetlenia
+            </p>
+            <Button className="mt-4" asChild>
+              <Link href="/modules">Przeglądaj moduły</Link>
             </Button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

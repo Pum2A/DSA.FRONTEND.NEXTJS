@@ -2,15 +2,14 @@
 
 import Navbar from "@/app/components/Navbar";
 import { LessonDto } from "@/app/types/api/lessonTypes";
-import { ModuleDetailsDto, ModuleProgressDto } from "@/app/types/api/moduleTypes";
-
+import { ModuleDetailsDto } from "@/app/types/api/moduleTypes";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
@@ -22,22 +21,23 @@ export default function ModulePage() {
   const { moduleId } = useParams() as { moduleId: string };
 
   // Fetch module details
-  const { data: moduleDetails, isLoading: moduleLoading } = useQuery<ModuleDetailsDto>({
-    queryKey: ["module", moduleId],
-    queryFn: async () => {
-      try {
-        const response = await fetch(`/api/Lessons/modules/${moduleId}`, {
-          credentials: "include",
-        });
+  const { data: moduleDetails, isLoading: moduleLoading } =
+    useQuery<ModuleDetailsDto>({
+      queryKey: ["module", moduleId],
+      queryFn: async () => {
+        try {
+          const response = await fetch(`/api/Lessons/modules/${moduleId}`, {
+            credentials: "include",
+          });
 
-        if (!response.ok) throw new Error("Failed to fetch module");
-        return response.json();
-      } catch (error) {
-        console.error("Error fetching module:", error);
-        throw error;
-      }
-    },
-  });
+          if (!response.ok) throw new Error("Failed to fetch module");
+          return response.json();
+        } catch (error) {
+          console.error("Error fetching module:", error);
+          throw error;
+        }
+      },
+    });
 
   const isLoading = moduleLoading;
 
@@ -50,7 +50,7 @@ export default function ModulePage() {
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
             <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-            
+
             {[...Array(5)].map((_, i) => (
               <div key={i} className="p-4 border rounded-lg">
                 <div className="flex justify-between items-center">
@@ -66,12 +66,19 @@ export default function ModulePage() {
   }
 
   // Extract data
-  const module = moduleDetails || {} as ModuleDetailsDto;
+  const module = moduleDetails || ({} as ModuleDetailsDto);
   const lessons = module.lessons || [];
-  const progress = module.progress || {} as ModuleProgressDto;
-  
+  const quizzes = module.quizzes || [];
+
   // Calculate progress percentage
-  const progressPercentage = progress?.progressPercentage || 0;
+  const progressPercentage =
+    lessons && lessons.length > 0
+      ? Math.round(
+          (lessons.filter((lesson: LessonDto) => lesson.isCompleted).length /
+            lessons.length) *
+            100
+        )
+      : 0;
 
   return (
     <div>
@@ -79,16 +86,16 @@ export default function ModulePage() {
       <div className="container mx-auto py-8 px-4">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/dashboard">
+            <Link href="/modules">
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Powrót do dashboardu
+              Powrót do modułów
             </Link>
           </Button>
-          
+
           <div className="flex items-center gap-4">
             {module.iconUrl && (
-              <img 
-                src={module.iconUrl} 
+              <img
+                src={module.iconUrl}
                 alt={module.title}
                 className="w-12 h-12 rounded-lg"
               />
@@ -98,7 +105,7 @@ export default function ModulePage() {
               <p className="text-muted-foreground mt-2">{module.description}</p>
             </div>
           </div>
-          
+
           {/* Module progress */}
           <div className="mt-6">
             <div className="flex justify-between text-sm mb-2">
@@ -108,7 +115,7 @@ export default function ModulePage() {
             <Progress value={progressPercentage} className="h-2" />
           </div>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Lekcje w tym module</CardTitle>
@@ -122,14 +129,14 @@ export default function ModulePage() {
                 const isCompleted = !!lesson.isCompleted;
                 const isLocked = !lesson.isActive;
                 const lessonsCount = lesson.stepCount || 0;
-                
+
                 return (
-                  <div 
-                    key={lesson.id} 
+                  <div
+                    key={lesson.id}
                     className={`p-4 border rounded-lg flex justify-between items-center ${
-                      isLocked 
-                        ? 'bg-gray-50 dark:bg-gray-800/50 opacity-80' 
-                        : 'hover:border-brand-300 dark:hover:border-brand-700 transition-colors'
+                      isLocked
+                        ? "bg-gray-50 dark:bg-gray-800/50 opacity-80"
+                        : "hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
                     }`}
                   >
                     <div className="flex items-center">
@@ -141,14 +148,20 @@ export default function ModulePage() {
                         <BookOpen className="h-5 w-5 mr-3 text-brand-500" />
                       )}
                       <div>
-                        <div className={isLocked ? "text-muted-foreground" : ""}>
+                        <div
+                          className={isLocked ? "text-muted-foreground" : ""}
+                        >
                           {lesson.title}
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center">
                           <span>{lessonsCount} kroków</span>
                           {lesson.completedStepCount && lessonsCount > 0 && (
                             <span className="ml-2">
-                              • Postęp: {Math.round((lesson.completedStepCount / lessonsCount) * 100)}%
+                              • Postęp:{" "}
+                              {Math.round(
+                                (lesson.completedStepCount / lessonsCount) * 100
+                              )}
+                              %
                             </span>
                           )}
                           {lesson.xpReward > 0 && (
@@ -157,9 +170,11 @@ export default function ModulePage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {isLocked ? (
-                      <Button size="sm" variant="outline" disabled>Zablokowana</Button>
+                      <Button size="sm" variant="outline" disabled>
+                        Zablokowana
+                      </Button>
                     ) : isCompleted ? (
                       <Button size="sm" variant="outline" asChild>
                         <Link href={`/lessons/${lesson.id}`}>Powtórz</Link>
@@ -167,14 +182,17 @@ export default function ModulePage() {
                     ) : (
                       <Button size="sm" asChild>
                         <Link href={`/lessons/${lesson.id}`}>
-                          {lesson.completedStepCount && lesson.completedStepCount > 0 ? "Kontynuuj" : "Rozpocznij"}
+                          {lesson.completedStepCount &&
+                          lesson.completedStepCount > 0
+                            ? "Kontynuuj"
+                            : "Rozpocznij"}
                         </Link>
                       </Button>
                     )}
                   </div>
                 );
               })}
-              
+
               {(!lessons || lessons.length === 0) && (
                 <div className="text-center py-8 text-muted-foreground">
                   Ten moduł nie zawiera jeszcze żadnych lekcji.
@@ -183,9 +201,9 @@ export default function ModulePage() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Module quiz if available */}
-        {module.quizzes && module.quizzes.length > 0 && (
+        {quizzes && quizzes.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Quizy modułowe</CardTitle>
@@ -195,8 +213,11 @@ export default function ModulePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {module.quizzes.map((quiz) => (
-                  <div key={quiz.id} className="flex justify-between items-center p-4 border rounded-lg">
+                {quizzes.map((quiz) => (
+                  <div
+                    key={quiz.id}
+                    className="flex justify-between items-center p-4 border rounded-lg"
+                  >
                     <div>
                       <p className="font-medium">{quiz.title}</p>
                       <div className="text-xs text-muted-foreground flex items-center">
